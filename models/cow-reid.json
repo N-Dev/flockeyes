@@ -1,0 +1,22 @@
+{
+  "key": "megadescriptor-t-224-int8-1",
+  "name": "MegaDescriptor-T-224",
+  "licence": "CC BY-NC 4.0 (non-commercial)",
+  "source": "https://huggingface.co/BVRA/MegaDescriptor-T-224",
+  "size": 224,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "dim": 768,
+  "match": 0.95,
+  "fresh": 0.87,
+  "margin": 0.04,
+  "notes": "Thresholds from 2474 side-on photos of 136 Holstein cows (doi:10.34894/O1ZBSA): top-1 15.0%."
+}
