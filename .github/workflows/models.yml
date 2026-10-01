@@ -16,12 +16,17 @@ on:
       - 'tools/cowdetect.py'
       - '.github/workflows/models.yml'
   workflow_dispatch:
+    inputs:
+      compare:
+        description: 'Compare candidate recognition models instead (tools/compare_models.py); results on the compare-ci branch'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: models
+  group: models-${{ inputs.compare && 'compare' || 'reid' }}
   cancel-in-progress: true
 
 defaults:
@@ -30,6 +35,7 @@ defaults:
 
 jobs:
   reid:
+    if: ${{ !inputs.compare }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -54,6 +60,12 @@ jobs:
         run: |
           set -o pipefail
           python tools/prepare_reid.py build/reid 2>&1 | tee ci-out/prepare.log
+
+      # The photos (about 520 MB) are kept between runs rather than fetched from the archive each time.
+      - uses: actions/cache@v4
+        with:
+          path: build/data
+          key: holstein-photos-O1ZBSA-1
 
       - name: Measure it on photos of Holstein cows
         run: |
@@ -102,3 +114,55 @@ jobs:
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -q -m "Models run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:models-ci
+
+  # Which recognition model? Several are tried on the same photos (by hand: Run workflow > compare).
+  compare:
+    if: ${{ inputs.compare }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the tools
+        run: |
+          set -e -o pipefail
+          mkdir -p ci-out
+          python -m pip install --upgrade pip > /dev/null
+          pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
+          pip install timm==1.0.12 huggingface_hub==0.26.5 safetensors==0.4.5 onnxruntime==1.20.1 numpy==1.26.4 \
+            pillow opencv-python-headless==4.10.0.84 2>&1 | tail -1
+
+      - uses: actions/cache@v4
+        with:
+          path: build/data
+          key: holstein-photos-O1ZBSA-1
+
+      - name: Compare the models
+        run: |
+          set -o pipefail
+          python tools/compare_models.py build/reid build/data 2>&1 | tee ci-out/compare.log
+
+      - name: Publish the results (compare-ci branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          cp build/reid/compare.json build/reid/compare.md ci-out/ 2>/dev/null || true
+          {
+            echo "# Model comparison, run ${GITHUB_RUN_NUMBER}"
+            echo
+            echo "Commit ${GITHUB_SHA}, $(date -u), job status: ${JOB_STATUS}"
+            echo
+            cat ci-out/compare.md 2>/dev/null || true
+          } > ci-out/README.md
+          cd ci-out
+          git init -q -b compare-ci
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Model comparison run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:compare-ci

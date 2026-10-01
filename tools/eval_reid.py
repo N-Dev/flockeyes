@@ -57,7 +57,7 @@ def get(url, tries=4):
     last = None
     for i in range(tries):
         try:
-            return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=120)
+            return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60)
         except Exception as e:  # noqa: BLE001
             last = e
             log("  retrying", url, repr(e))
@@ -65,22 +65,34 @@ def get(url, tries=4):
     raise last
 
 
+def fetch(url, path):
+    """Downloads a file with curl (it retries, follows the archive's redirects, and can be told to use IPv4)."""
+    import subprocess
+
+    base = ["curl", "-fsSL", "--retry", "4", "--retry-all-errors", "--connect-timeout", "30", "--max-time", "900",
+            "-A", UA["User-Agent"], "-o", path, url]
+    for extra in (["-4"], []):
+        r = subprocess.run(base[:1] + extra + base[1:], capture_output=True, text=True)
+        if r.returncode == 0 and os.path.getsize(path) > 0:
+            return
+        log("  curl", " ".join(extra), "failed:", r.stderr.strip()[-300:])
+    raise RuntimeError(f"couldn't download {url}")
+
+
 def download(dest):
     os.makedirs(dest, exist_ok=True)
     if os.path.exists(os.path.join(dest, ".done")):
+        log("the photos are already here")
         return
     meta = json.load(get(f"{API}/datasets/:persistentId/?persistentId={DOI}"))
     files = meta["data"]["latestVersion"]["files"]
     log("dataset files:", [(f["dataFile"].get("filename"), f["dataFile"].get("filesize")) for f in files])
-    with open(os.path.join(BUILD, "dataset-meta.json"), "w") as f:
-        json.dump(meta["data"]["latestVersion"].get("metadataBlocks", {}), f)
     for f in files:
         d = f["dataFile"]
         name = d.get("filename") or f.get("label") or str(d["id"])
         path = os.path.join(dest, name)
         t0 = time.time()
-        with get(f"{API}/access/datafile/{d['id']}") as r, open(path, "wb") as out:
-            shutil.copyfileobj(r, out, 1 << 20)
+        fetch(f"{API}/access/datafile/{d['id']}", path)
         log("  downloaded", name, os.path.getsize(path), "bytes in %.0f s" % (time.time() - t0))
         if zipfile.is_zipfile(path):
             with zipfile.ZipFile(path) as z:
