@@ -94,6 +94,15 @@ def words(path):
 
 
 def kind_of(path):
+    name = os.path.basename(path).lower()
+    # This dataset: "FLIR1945- full photo.jpg" is the camera's colour photo (640 x 480), "FLIR1945- photo.jpg"
+    # the part of it the thermal picture covers, and "FLIR1945.jpg" the thermal picture itself.
+    if "full photo" in name:
+        return "rgb"
+    if "- photo" in name:
+        return "rgb-part"
+    if re.fullmatch(r"flir\d+\.jpe?g", name):
+        return "thermal"
     w = words(path)
     if w & RGB_WORDS:
         return "rgb"
@@ -203,7 +212,7 @@ def main():
         rgb = [f for f in files if f[3] == "rgb"]
         how = "named rgb"
     elif kinds.get("thermal"):
-        rgb = [f for f in files if f[3] != "thermal"]
+        rgb = [f for f in files if f[3] is None]
         how = "not named thermal"
     else:
         small = min(sizes, key=lambda s: s[0] * s[1])
@@ -249,6 +258,19 @@ def main():
             boxes.append(box)
     y = np.array(labels)
     log(f"cow finder: a cow boxed in {found} of {len(crops)} photos")
+
+    # The model's page says to scale colours with mean and spread 0.5; its settings file says ImageNet's
+    # values. Both are tried on the full model, and the better one is used.
+    norms = {"half": ([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), "imagenet": ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])}
+    norm_top1 = {}
+    for nm, (mean, std) in norms.items():
+        run = embedder(os.path.join(BUILD, "cow-reid-fp32.onnx"), mean, std)
+        En = np.stack([run(c) for c in crops]).astype(np.float32)
+        norm_top1[nm] = measure(En, y)[0]
+        log(f"colour scaling '{nm}': top-1 {norm_top1[nm]:.3f}")
+    best_norm = max(norm_top1, key=norm_top1.get)
+    export["mean"], export["std"] = norms[best_norm]
+    log("using colour scaling:", best_norm)
 
     results = {}
     embs = {}
@@ -345,6 +367,7 @@ def main():
 
     with open(os.path.join(BUILD, "eval.json"), "w") as f:
         json.dump({"photos": len(crops), "cows": len(cows), "boxed": found, "how_rgb": how, "agree_int8_fp32": agree,
+                   "colour_scaling": best_norm, "colour_scaling_top1": norm_top1,
                    "ships": use, "config": cfg, "results": results, "export": export}, f, indent=1)
 
     def pct(v):
@@ -362,8 +385,8 @@ Measured by `tools/eval_reid.py` (run by the *Models* workflow), not on a phone.
 
 **The photos.** {len(crops)} side-on colour photos of {len(cows)} Holstein cows, about {np.mean(counts):.0f} each, from
 "Holstein Cattle Recognition" (Bhole, Falzon, Biehl, Azzopardi; Dairy Campus Leeuwarden; CC0;
-<https://doi.org/10.34894/O1ZBSA>). They are small (320 x 240). The app's cow finder boxed the cow in
-{found} of them ({pct(found / len(crops))}); the others were used whole.
+<https://doi.org/10.34894/O1ZBSA>). They are 640 x 480, taken indoors with the cow behind metal rails. The app's cow finder boxed the cow in {found} of them ({pct(found / len(crops))}); the others
+were used whole.
 
 **The model.** MegaDescriptor-T-224 ({export['parameters'] / 1e6:.1f} million parameters), exported to ONNX. The app ships the
 **{'8-bit' if use == 'int8' else 'full'}** version ({os.path.getsize(src) / 1e6:.0f} MB).
@@ -379,9 +402,11 @@ Measured by `tools/eval_reid.py` (run by the *Models* workflow), not on a phone.
 The two versions agree closely on these photos (mean cosine {agree:.3f}).
 
 **What this does and doesn't show.** Each cow's photos here were taken in the same place, side-on, at the
-same distance, so this is close to the best case: the gate count's situation. A field is harder: cows are
-further away, at every angle, and partly hidden. And a cow's two sides have different markings, so a cow
-learnt from its left looks like a stranger from its right until the app has seen both.
+same distance and from the same side, partly hidden by rails. That is close to the gate count's
+situation. Some of a cow's photos may have been taken moments apart, which is easier than knowing a cow
+again days later. A field is harder: cows are further away, at every angle, and hide each other. And a
+cow's two sides have different markings, so a cow learnt from its left looks like a stranger from its
+right until the app has seen both.
 
 ## How alike photos are (cosine, {use})
 
