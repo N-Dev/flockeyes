@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+ci-out/
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/

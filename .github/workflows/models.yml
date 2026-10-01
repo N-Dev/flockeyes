@@ -1,0 +1,100 @@
+# Prepares the cow recognition model and measures it (GitHub's machines can reach Hugging Face and the
+# photo archive; the workspace the app is written in can't).
+#   1. tools/prepare_reid.py: MegaDescriptor-T-224 from Hugging Face -> ONNX, full and 8-bit.
+#   2. tools/eval_reid.py: measures both on side-on photos of 136 Holstein cows (CC0), picks the one that
+#      ships, sets the app's thresholds, and saves a few of the photos as test pictures.
+#   3. Commits models/cow-reid.onnx, models/cow-reid.json, tests/assets/cows and docs/recognition.md.
+# The log and the full results go to the models-ci branch; both model versions to the "models" release.
+name: Models
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/prepare_reid.py'
+      - 'tools/eval_reid.py'
+      - 'tools/cowdetect.py'
+      - '.github/workflows/models.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: models
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the tools
+        run: |
+          mkdir -p ci-out
+          python -m pip install --upgrade pip > /dev/null
+          pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
+          pip install timm==1.0.12 onnx==1.17.0 onnxruntime==1.20.1 "numpy<2.2" pillow opencv-python-headless huggingface_hub 2>&1 | tail -1
+
+      - name: Fetch the recognition model and export it
+        run: |
+          set -o pipefail
+          python tools/prepare_reid.py build/reid 2>&1 | tee ci-out/prepare.log
+
+      - name: Measure it on photos of Holstein cows
+        run: |
+          set -o pipefail
+          python tools/eval_reid.py build/reid build/data 2>&1 | tee ci-out/eval.log
+
+      - name: Commit the model, its settings, the test photos and the results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/cow-reid.onnx models/cow-reid.json tests/assets/cows docs/recognition.md
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+          else
+            git commit -q -m "Recognition model, thresholds and test photos (Models run ${GITHUB_RUN_NUMBER})"
+            git pull -q --rebase origin main
+            git push -q origin HEAD:main
+          fi
+
+      - name: Both model versions as a release (for looking at them elsewhere)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete models --yes --cleanup-tag 2>/dev/null || true
+          gh release create models build/reid/cow-reid-fp32.onnx build/reid/cow-reid-int8.onnx build/reid/eval.json build/reid/export.json \
+            --prerelease --latest=false --title "Recognition model files" \
+            --notes "MegaDescriptor-T-224 (CC BY-NC 4.0, https://huggingface.co/BVRA/MegaDescriptor-T-224) exported to ONNX by the Models workflow: the full version and the 8-bit one. Not an app release."
+
+      - name: Publish the log and results (models-ci branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          cp build/reid/*.json build/reid/*.txt ci-out/ 2>/dev/null || true
+          cp docs/recognition.md ci-out/ 2>/dev/null || true
+          {
+            echo "# Models run ${GITHUB_RUN_NUMBER}"
+            echo
+            echo "Commit ${GITHUB_SHA}, $(date -u), job status: ${JOB_STATUS}"
+          } > ci-out/README.md
+          cd ci-out
+          git init -q -b models-ci
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Models run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:models-ci

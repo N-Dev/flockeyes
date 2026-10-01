@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10190e">
+<title>Flock Eyes – Dairy</title>
+<style>
+:root{--bg:#10190e;--card:#1a2617;--ink:#eaf2e3;--mut:#9bb08f;--acc:#8fe05a;--warn:#ffb84d;--bad:#ff7a6b;--line:#2a3a25}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
+header{padding:14px 16px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h1{font-size:20px;margin:0}h1 span{color:var(--acc);font-weight:500;font-size:14px;margin-left:6px}
+#status{font-size:12px;color:var(--mut);text-align:right}
+main{padding:0 12px;max-width:760px;margin:0 auto}
+.tab{display:none}.tab.active{display:block}
+#stage{position:relative;background:#000;border-radius:14px;overflow:hidden;min-height:34vh;display:flex;align-items:center;justify-content:center}
+#vid,#img{display:none;width:100%;height:auto}
+#stage.video #vid{display:block}#stage.photo #img{display:block}
+#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#empty{color:var(--mut);text-align:center;padding:24px;font-size:15px}
+#stage.video #empty,#stage.photo #empty{display:none}
+.counter{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:10px 0;padding:12px 14px}
+.big{display:flex;align-items:baseline;gap:10px}.big b{font-size:52px;line-height:1;color:var(--acc)}.big span{color:var(--mut)}
+.mini{display:flex;gap:8px;margin-top:10px}.mini div{flex:1;background:#142010;border-radius:10px;padding:8px;text-align:center;font-size:12px;color:var(--mut)}
+.mini b{display:block;font-size:22px;color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+button,.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px 14px;font:600 15px system-ui;flex:1;text-align:center;cursor:pointer}
+button.pri,.btn.pri{background:var(--acc);color:#0c1408;border-color:var(--acc)}
+button:disabled{opacity:.5}
+input[type=file]{display:none}
+#missing{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.chip{background:#2b1f12;border:1px solid #5a4020;color:var(--warn);border-radius:999px;padding:3px 10px;font-size:13px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0}
+summary{cursor:pointer;font-weight:600}
+label.f{display:block;margin:12px 0 4px;font-size:14px}
+input[type=range]{width:100%}
+small,.hint{color:var(--mut);font-size:13px}
+.cow{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;margin:8px 0}
+.cow img{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#000}
+.cow .info{flex:1;min-width:0}.cow .nm{display:block;cursor:pointer;text-decoration:underline dotted}
+.cow .x{flex:0;padding:8px 12px}
+.sess{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+.sess b{font-size:20px;color:var(--acc)}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#0b120a;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{border:0;border-radius:0;background:none;color:var(--mut);padding:16px 4px}
+nav button.on{color:var(--acc)}
+#toast{position:fixed;left:12px;right:12px;bottom:92px;background:#e8f5dc;color:#10190e;padding:10px 14px;border-radius:12px;font-weight:600;display:none;z-index:9;max-width:736px;margin:auto}
+</style>
+</head>
+<body>
+<header><h1>Flock Eyes<span>dairy</span></h1><div id="status">Models load on first use</div></header>
+<main>
+<section id="tab-scan" class="tab active">
+  <div id="stage">
+    <video id="vid" playsinline muted></video>
+    <img id="img" alt="">
+    <canvas id="ov"></canvas>
+    <div id="empty">Start the camera, or open a video or photos of the field.</div>
+  </div>
+
+  <div class="counter">
+    <div class="big"><b id="cntField">0</b><span>cows counted in this field</span></div>
+    <div class="mini">
+      <div><b id="cntView">0</b>in view now</div>
+      <div><b id="cntNew">0</b>new this field</div>
+      <div><b id="cntMissing">–</b>not seen yet</div>
+    </div>
+  </div>
+  <div id="missing"></div>
+
+  <div class="row">
+    <button class="pri" id="btnCam">Start camera</button>
+    <label class="btn" for="fileIn">Open video / photos</label>
+    <input id="fileIn" type="file" accept="video/*,image/*" multiple>
+  </div>
+  <div class="row">
+    <button id="btnStop">Stop</button>
+    <button id="btnFinish">Finish &amp; save count</button>
+    <button id="btnReset">New field</button>
+  </div>
+
+  <details>
+    <summary>Settings</summary>
+    <label class="f">Match strictness: <b id="thrVal"></b></label>
+    <input id="thr" type="range" min="0.30" max="0.85" step="0.01">
+    <small>Higher = fewer wrong matches but more duplicate cows. Lower = fewer duplicates but more mix-ups.</small>
+    <label class="f"><input id="learn" type="checkbox" checked> Learn new cows automatically</label>
+    <small>Turn off once your herd is enrolled, so strangers show as "Unrecognised" instead of being added.</small>
+  </details>
+  <p class="hint">Tips: keep each cow fairly large in frame, walk slowly along the fence, and film side-on where the coat pattern shows. Cows cut off by the edge of the frame aren't used to identify.</p>
+</section>
+
+<section id="tab-herd" class="tab">
+  <p><b id="herdCount">0</b> cows known. Tap a name to set the ear tag or name.</p>
+  <div id="herdList"></div>
+  <div class="row"><button id="btnClearHerd">Clear whole herd</button></div>
+</section>
+
+<section id="tab-fields" class="tab">
+  <div class="row"><button class="pri" id="btnCsv">Download CSV</button></div>
+  <div id="sessList"></div>
+</section>
+</main>
+
+<nav>
+  <button data-tab="scan" class="on">Count</button>
+  <button data-tab="herd">Herd</button>
+  <button data-tab="fields">Fields</button>
+</nav>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script>
+// <CORE>
+/* ---------- pure logic (also unit-tested in Node) ---------- */
+function dot(a,b){let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s;}
+function centred(a,mean){
+  const o=new Float32Array(a.length);let s=0;
+  for(let i=0;i<a.length;i++){const v=a[i]-(mean?mean[i]:0);o[i]=v;s+=v*v;}
+  s=Math.sqrt(s)||1;for(let i=0;i<a.length;i++)o[i]/=s;return o;
+}
+function meanVec(list){
+  const o=new Float32Array(list[0].length);
+  for(const v of list)for(let i=0;i<o.length;i++)o[i]+=v[i];
+  for(let i=0;i<o.length;i++)o[i]/=list.length;return o;
+}
+function iou(a,b){
+  const x1=Math.max(a[0],b[0]),y1=Math.max(a[1],b[1]);
+  const x2=Math.min(a[0]+a[2],b[0]+b[2]),y2=Math.min(a[1]+a[3],b[1]+b[3]);
+  const inter=Math.max(0,x2-x1)*Math.max(0,y2-y1);
+  const u=a[2]*a[3]+b[2]*b[3]-inter;return u>0?inter/u:0;
+}
+function nms(dets,thr){
+  const out=[];
+  for(const d of dets.slice().sort((a,b)=>b.score-a.score))
+    if(out.every(k=>iou(k.box,d.box)<thr))out.push(d);
+  return out;
+}
+class RunningMean{
+  constructor(){this.mean=null;this.n=0;}
+  add(v){
+    if(!this.mean)this.mean=new Float32Array(v.length);
+    this.n++;const w=1/Math.min(this.n,600);
+    for(let i=0;i<v.length;i++)this.mean[i]+=(v[i]-this.mean[i])*w;
+  }
+}
+function scoreCow(te,cow,mean){
+  let best=-1;
+  for(const g of cow.gallery){const s=dot(te,centred(g,mean));if(s>best)best=s;}
+  return best;
+}
+function farthest(samples,k){
+  if(samples.length<=k)return samples.slice();
+  const c=samples.map(s=>centred(s,null)),pick=[0];
+  while(pick.length<k){
+    let bi=-1,bs=2;
+    for(let i=0;i<c.length;i++){
+      if(pick.includes(i))continue;
+      let m=-1;for(const p of pick){const s=dot(c[i],c[p]);if(s>m)m=s;}
+      if(m<bs){bs=m;bi=i;}
+    }
+    pick.push(bi);
+  }
+  return pick.map(i=>samples[i]);
+}
+function maybeAddToGallery(gallery,emb,mean,cfg){
+  const e=centred(emb,mean);let m=-1;
+  for(const g of gallery){const s=dot(e,centred(g,mean));if(s>m)m=s;}
+  if(m>=cfg.galleryDup)return false;
+  gallery.push(emb);
+  if(gallery.length>cfg.maxGallery){
+    const c=gallery.map(g=>centred(g,mean));let wi=0,ws=-2;
+    for(let i=0;i<c.length;i++){
+      let t=0;for(let j=0;j<c.length;j++)if(i!==j)t+=dot(c[i],c[j]);
+      t/=(c.length-1);if(t>ws){ws=t;wi=i;}
+    }
+    gallery.splice(wi,1);
+  }
+  return true;
+}
+/* Decide who each unidentified track is.
+   assign: matched to a known cow; create: clearly nobody known; pending: wait for more samples.
+   A cow can't be two tracks in the same frame (taken set). */
+function resolveIdentities(tracks,cows,mean,cfg){
+  const res={assign:[],create:[],pending:[]};
+  const taken=new Set(tracks.filter(t=>t.cowId!=null&&t.missed===0).map(t=>t.cowId));
+  const cands=[];
+  for(const t of tracks){
+    if(t.cowId!=null||t.unknown||t.samples.length<cfg.minSamples)continue;
+    const te=centred(meanVec(t.samples),mean);
+    const sc=cows.map(c=>({cowId:c.id,s:scoreCow(te,c,mean)})).sort((a,b)=>b.s-a.s);
+    const b=sc[0],s2=sc[1];
+    if(!b||b.s<cfg.thr){res.create.push(t);continue;}
+    if(s2&&(b.s-s2.s)<cfg.margin&&t.samples.length<cfg.maxWait){res.pending.push(t);continue;}
+    cands.push({t,cowId:b.cowId,s:b.s});
+  }
+  cands.sort((a,b)=>b.s-a.s);
+  const done=new Set();
+  for(const c of cands){
+    if(done.has(c.t))continue;done.add(c.t);
+    if(taken.has(c.cowId)){
+      if(c.t.samples.length>=cfg.maxWait)res.create.push(c.t);else res.pending.push(c.t);
+      continue;
+    }
+    taken.add(c.cowId);res.assign.push([c.t,c.cowId]);
+  }
+  return res;
+}
+class Tracker{
+  constructor(cfg){this.cfg=cfg;this.tracks=[];this.nextId=1;}
+  update(dets,now){
+    const pairs=[];
+    this.tracks.forEach((t,ti)=>dets.forEach((d,di)=>{
+      const o=iou(t.box,d.box);if(o>=this.cfg.iouMin)pairs.push([o,ti,di]);
+    }));
+    pairs.sort((a,b)=>b[0]-a[0]);
+    const usedT=new Set(),usedD=new Set();
+    for(const [o,ti,di] of pairs){
+      if(usedT.has(ti)||usedD.has(di))continue;usedT.add(ti);usedD.add(di);
+      const t=this.tracks[ti];t.box=dets[di].box;t.score=dets[di].score;t.hits++;t.missed=0;t.lastSeen=now;
+    }
+    dets.forEach((d,di)=>{
+      if(usedD.has(di))return;
+      this.tracks.push({id:this.nextId++,box:d.box,score:d.score,hits:1,missed:0,firstSeen:now,lastSeen:now,samples:[],cowId:null,unknown:false,thumb:null,lastSample:null});
+    });
+    for(const t of this.tracks)if(t.lastSeen!==now)t.missed++;
+    this.tracks=this.tracks.filter(t=>now-t.lastSeen<=this.cfg.maxAgeMs);
+  }
+}
+// </CORE>
+
+/* ---------- app ---------- */
+const cfg={thr:0.55,margin:0.05,minSamples:4,maxWait:10,maxGallery:8,galleryDup:0.85,iouMin:0.2,maxAgeMs:2000,
+  detScore:0.45,sampleGapMs:350,assignedGapMs:1500,warmup:15,minBoxFrac:0.04,learn:true};
+const $=s=>document.querySelector(s);
+const vid=$('#vid'),img=$('#img'),ov=$('#ov'),octx=ov.getContext('2d'),stage=$('#stage');
+const work=document.createElement('canvas'),wctx=work.getContext('2d');
+const crop=document.createElement('canvas');crop.width=crop.height=224;const cctx=crop.getContext('2d');
+const thumbC=document.createElement('canvas');thumbC.width=thumbC.height=72;const tctx=thumbC.getContext('2d');
+
+let detector=null,embedder=null,modelsP=null;
+let cows=[],sessions=[],meta={nextCow:0};
+const rm=new RunningMean();
+const tracker=new Tracker(cfg);
+let session=newSession();
+let running=false,stream=null,wake=null,mode=null,dirty=false,persistTimer=null,photoItems=[];
+
+function newSession(){return {cows:new Set(),unknown:new Set(),newCows:new Set()};}
+const cowById=id=>cows.find(c=>c.id===id);
+function toast(msg,ms=3200){const t=$('#toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',ms);}
+function setStatus(s){$('#status').textContent=s;}
+
+/* --- storage --- */
+const DB={db:null,
+  async open(){
+    try{this.db=await new Promise((res,rej)=>{
+      const r=indexedDB.open('flock-eyes',1);
+      r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('cows',{keyPath:'id'});d.createObjectStore('meta');d.createObjectStore('sessions',{keyPath:'id',autoIncrement:true});};
+      r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+    });}catch(e){this.db=null;}
+  },
+  req(r){return new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
+  async getAll(s){return this.db?this.req(this.db.transaction(s).objectStore(s).getAll()):[];},
+  async get(s,k){return this.db?this.req(this.db.transaction(s).objectStore(s).get(k)):undefined;},
+  async addSession(o){if(!this.db)return o;const id=await this.req(this.db.transaction('sessions','readwrite').objectStore('sessions').add(o));o.id=id;return o;}
+};
+function markDirty(){dirty=true;clearTimeout(persistTimer);persistTimer=setTimeout(persist,2500);}
+async function persist(){
+  if(!DB.db||!dirty)return;dirty=false;
+  const tx=DB.db.transaction(['cows','meta'],'readwrite');
+  const cs=tx.objectStore('cows');cs.clear();cows.forEach(c=>cs.put(c));
+  tx.objectStore('meta').put({nextCow:meta.nextCow,mean:rm.mean,n:rm.n},'meta');
+  await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});
+}
+addEventListener('pagehide',()=>{persist();});
+
+/* --- models --- */
+function ensureModels(){
+  if(modelsP)return modelsP;
+  modelsP=(async()=>{
+    setStatus('Loading models (first time ~20 MB)…');
+    await tf.ready();
+    detector=await cocoSsd.load({base:'mobilenet_v2'});
+    embedder=await mobilenet.load({version:2,alpha:1.0});
+    setStatus('Ready');
+    const dim=embedder.infer(tf.zeros([224,224,3]),true);const d=dim.shape[1];dim.dispose();
+    if(cows.some(c=>c.gallery.some(g=>g.length!==d))){cows=[];rm.mean=null;rm.n=0;meta.nextCow=0;markDirty();renderAll();toast('Model changed – herd was reset.');}
+  })().catch(e=>{modelsP=null;setStatus('Model load failed');toast('Could not load models. Check your connection.',6000);throw e;});
+  return modelsP;
+}
+
+/* --- detection / embedding --- */
+async function detect(src,nw,nh){
+  const scale=Math.min(1,640/nw);
+  work.width=Math.round(nw*scale);work.height=Math.round(nh*scale);
+  wctx.drawImage(src,0,0,work.width,work.height);
+  const preds=await detector.detect(work,20,cfg.detScore);
+  const dets=preds.filter(p=>p.class==='cow'&&p.score>=cfg.detScore).map(p=>({box:p.bbox.map(v=>v/scale),score:p.score}));
+  return nms(dets,0.6);
+}
+async function embedCrop(src,box){
+  const [x,y,w,h]=box,pad=0.05;
+  const sx=Math.max(0,x-w*pad),sy=Math.max(0,y-h*pad);
+  const sw=Math.min(w*(1+2*pad),(src.videoWidth||src.naturalWidth)-sx),sh=Math.min(h*(1+2*pad),(src.videoHeight||src.naturalHeight)-sy);
+  cctx.drawImage(src,sx,sy,sw,sh,0,0,224,224);
+  const t=embedder.infer(crop,true);const data=await t.data();t.dispose();
+  tctx.drawImage(crop,0,0,72,72);
+  return {emb:Float32Array.from(data),thumb:thumbC.toDataURL('image/jpeg',0.6)};
+}
+const touchesEdge=(b,nw,nh,m=0.01)=>b[0]<m*nw||b[1]<m*nh||b[0]+b[2]>nw*(1-m)||b[1]+b[3]>nh*(1-m);
+
+/* --- cows --- */
+function createCow(t){
+  const id=++meta.nextCow;
+  const cow={id,name:'Cow '+id,created:Date.now(),lastSeen:Date.now(),sightings:0,gallery:farthest(t.samples,4),thumb:t.thumb};
+  cows.push(cow);t.cowId=id;session.newCows.add(id);markDirty();return cow;
+}
+function applyResolution(res){
+  for(const [t,cowId] of res.assign){
+    t.cowId=cowId;const cow=cowById(cowId);
+    for(const s of t.samples)maybeAddToGallery(cow.gallery,s,rm.mean,cfg);
+    if(!cow.thumb)cow.thumb=t.thumb;markDirty();
+  }
+  for(const t of res.create){
+    if(cfg.learn)createCow(t);
+    else if(t.hits>=3){t.unknown=true;session.unknown.add(mode+':'+t.id);}
+  }
+}
+function registerSightings(list){
+  const now=Date.now();
+  for(const t of list){
+    if(t.cowId==null||t.missed>0||t.hits<2)continue;
+    if(!session.cows.has(t.cowId)){
+      session.cows.add(t.cowId);const c=cowById(t.cowId);if(c){c.sightings++;c.lastSeen=now;markDirty();}
+    }
+  }
+}
+
+/* --- live loop --- */
+function eligible(t,nw,nh,now){
+  if(t.unknown||t.hits<2||touchesEdge(t.box,nw,nh))return false;
+  if(t.box[2]<Math.max(48,nw*cfg.minBoxFrac))return false;
+  if(t.samples.length>=14&&t.cowId==null)return false;
+  if(t.cowId!=null){const c=cowById(t.cowId);if(!c||c.gallery.length>=cfg.maxGallery)return false;}
+  return now-(t.lastSample||-1e9)>=(t.cowId!=null?cfg.assignedGapMs:cfg.sampleGapMs);
+}
+async function processFrame(src,nw,nh,now){
+  if(ov.width!==nw||ov.height!==nh){ov.width=nw;ov.height=nh;}
+  const dets=await detect(src,nw,nh);
+  tracker.update(dets,now);
+  const live=tracker.tracks.filter(t=>t.missed===0&&eligible(t,nw,nh,now))
+    .sort((a,b)=>(a.cowId!=null)-(b.cowId!=null)||a.samples.length-b.samples.length).slice(0,2);
+  for(const t of live){
+    const r=await embedCrop(src,t.box);
+    t.samples.push(r.emb);if(t.samples.length>14)t.samples.shift();
+    t.lastSample=now;if(!t.thumb)t.thumb=r.thumb;rm.add(r.emb);
+    if(t.cowId!=null){const c=cowById(t.cowId);if(c&&maybeAddToGallery(c.gallery,r.emb,rm.mean,cfg))markDirty();}
+  }
+  if(rm.n>=cfg.warmup)applyResolution(resolveIdentities(tracker.tracks,cows,rm.mean,cfg));
+  registerSightings(tracker.tracks);
+  draw(nw,nh,tracker.tracks.filter(t=>t.missed===0&&t.hits>=2));
+  updateCounts(tracker.tracks.filter(t=>t.missed===0&&t.hits>=2).length);
+  if(rm.n<cfg.warmup)setStatus(`Learning what your cows look like (${rm.n}/${cfg.warmup})…`);
+  else setStatus('Counting');
+}
+async function run(){
+  if(running)return;running=true;
+  while(running){
+    if(vid.readyState>=2&&!vid.paused&&!vid.ended){
+      try{await processFrame(vid,vid.videoWidth,vid.videoHeight,performance.now());}catch(e){console.error(e);}
+    }
+    if(vid.ended&&mode==='video'){toast(`Video finished: ${fieldCount()} cows counted. Tap “Finish & save count”.`,6000);break;}
+    await new Promise(r=>requestAnimationFrame(r));
+  }
+  running=false;
+}
+function stopAll(){
+  running=false;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  try{vid.pause();}catch(e){}
+  vid.srcObject=null;
+  if(wake){try{wake.release();}catch(e){}wake=null;}
+  persist();
+}
+function show(kind){stage.className=kind||'';}
+async function startCamera(){
+  try{await ensureModels();}catch(e){return;}
+  stopAll();tracker.tracks=[];
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+  }catch(e){toast('Camera not available. Allow camera access (needs https).',6000);return;}
+  vid.srcObject=stream;await vid.play();mode='camera';show('video');run();
+  try{wake=await navigator.wakeLock.request('screen');}catch(e){}
+}
+async function openFiles(files){
+  files=[...files];if(!files.length)return;
+  try{await ensureModels();}catch(e){return;}
+  stopAll();tracker.tracks=[];
+  const video=files.find(f=>f.type.startsWith('video'));
+  if(video){
+    vid.src=URL.createObjectURL(video);vid.muted=true;
+    await vid.play();mode='video';show('video');run();
+  }else analysePhotos(files.filter(f=>f.type.startsWith('image')));
+}
+async function analysePhotos(files){
+  mode='photo';show('photo');photoItems=[];
+  const groups=[];
+  setStatus('Analysing photos…');
+  for(let i=0;i<files.length;i++){
+    const url=URL.createObjectURL(files[i]);img.src=url;await img.decode();
+    const nw=img.naturalWidth,nh=img.naturalHeight;ov.width=nw;ov.height=nh;
+    const dets=await detect(img,nw,nh);const items=[];
+    for(const d of dets){
+      if(d.box[2]<40)continue;
+      const r=await embedCrop(img,d.box);rm.add(r.emb);
+      items.push({id:groups.length+'-'+items.length,box:d.box,samples:[r.emb],thumb:r.thumb,cowId:null,unknown:false,missed:0,hits:3});
+    }
+    groups.push({url,items,nw,nh});
+    setStatus(`Analysed photo ${i+1}/${files.length}`);
+  }
+  if(rm.n<cfg.warmup){
+    toast(`Only ${rm.n} cows seen so far — need ~${cfg.warmup} sightings to tell cows apart. Add more photos or use video.`,7000);
+    setStatus('Need more cows to learn from');
+    for(const g of groups){img.src=g.url;await img.decode();draw(g.nw,g.nh,g.items);await sleep(500);}
+    return;
+  }
+  const pcfg=Object.assign({},cfg,{minSamples:1,maxWait:1});
+  for(const g of groups){
+    applyResolution(resolveIdentities(g.items,cows,rm.mean,pcfg));
+    registerSightings(g.items);
+    img.src=g.url;await img.decode();ov.width=g.nw;ov.height=g.nh;
+    draw(g.nw,g.nh,g.items);updateCounts(g.items.length);
+    if(groups.length>1)await sleep(800);
+  }
+  setStatus(`Done: ${fieldCount()} cows counted`);
+  markDirty();renderAll();
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* --- drawing / counts --- */
+const hue=id=>`hsl(${(id*47)%360} 85% 58%)`;
+function labelFor(t){
+  if(t.cowId!=null){const c=cowById(t.cowId);return c?c.name:'Cow';}
+  if(t.unknown)return 'Unrecognised';
+  if(rm.n<cfg.warmup)return 'Learning…';
+  return `Identifying ${Math.min(t.samples.length,cfg.minSamples)}/${cfg.minSamples}`;
+}
+function draw(nw,nh,list){
+  const c=octx;c.clearRect(0,0,nw,nh);
+  const lw=Math.max(2,nw/320),fs=Math.max(14,Math.round(nw/42));
+  c.lineWidth=lw;c.font=`600 ${fs}px system-ui,sans-serif`;c.textBaseline='top';
+  for(const t of list){
+    const col=t.cowId!=null?hue(t.cowId):'#aab5a0';
+    c.strokeStyle=col;c.setLineDash(t.cowId!=null?[]:[lw*3,lw*2]);
+    c.strokeRect(t.box[0],t.box[1],t.box[2],t.box[3]);
+    const txt=labelFor(t),w=c.measureText(txt).width+fs*0.7,h=fs*1.4;
+    const ly=t.box[1]-h<0?t.box[1]:t.box[1]-h;
+    c.setLineDash([]);c.fillStyle=col;c.fillRect(t.box[0],ly,w,h);
+    c.fillStyle='#0c1408';c.fillText(txt,t.box[0]+fs*0.35,ly+fs*0.2);
+  }
+}
+const fieldCount=()=>session.cows.size+session.unknown.size;
+function updateCounts(inView){
+  $('#cntField').textContent=fieldCount();
+  if(inView!=null)$('#cntView').textContent=inView;
+  $('#cntNew').textContent=session.newCows.size;
+  const missing=cows.filter(c=>!session.cows.has(c.id));
+  $('#cntMissing').textContent=cows.length?missing.length:'–';
+  const box=$('#missing');box.innerHTML='';
+  if(cows.length&&session.cows.size&&missing.length<=30)
+    missing.forEach(c=>{const s=document.createElement('span');s.className='chip';s.textContent=c.name;box.appendChild(s);});
+}
+
+/* --- herd & fields UI --- */
+function renderHerd(){
+  $('#herdCount').textContent=cows.length;
+  const el=$('#herdList');el.innerHTML='';
+  cows.slice().sort((a,b)=>a.id-b.id).forEach(c=>{
+    const d=document.createElement('div');d.className='cow';
+    d.innerHTML='<img alt=""><div class="info"><b class="nm"></b><small></small></div><button class="x" aria-label="Delete">✕</button>';
+    if(c.thumb)d.querySelector('img').src=c.thumb;
+    const nm=d.querySelector('.nm');nm.textContent=c.name;
+    nm.onclick=()=>{const n=prompt('Name or ear tag',c.name);if(n&&n.trim()){c.name=n.trim();markDirty();renderAll();}};
+    d.querySelector('small').textContent=`Seen in ${c.sightings} field count${c.sightings===1?'':'s'} · last ${new Date(c.lastSeen).toLocaleDateString()} · ${c.gallery.length} views stored`;
+    d.querySelector('.x').onclick=()=>{
+      if(!confirm(`Delete ${c.name}?`))return;
+      cows=cows.filter(k=>k.id!==c.id);session.cows.delete(c.id);session.newCows.delete(c.id);
+      tracker.tracks.forEach(t=>{if(t.cowId===c.id)t.cowId=null;});
+      markDirty();renderAll();
+    };
+    el.appendChild(d);
+  });
+}
+function renderSessions(){
+  const el=$('#sessList');el.innerHTML='';
+  if(!sessions.length){el.innerHTML='<p class="hint">No saved counts yet. Use “Finish &amp; save count” after walking a field.</p>';return;}
+  sessions.slice().reverse().forEach(s=>{
+    const d=document.createElement('div');d.className='sess';
+    const b=document.createElement('b');b.textContent=s.count;
+    const t=document.createElement('div');t.textContent=`${s.name} — ${new Date(s.date).toLocaleString()}`;
+    const m=document.createElement('small');m.textContent=s.missing.length?`Herd ${s.herd}; not seen: ${s.missing.join(', ')}`:`Herd ${s.herd}; all known cows seen`;
+    d.append(b,' cows',t,m);el.appendChild(d);
+  });
+}
+function renderAll(){renderHerd();renderSessions();updateCounts();}
+function exportCsv(){
+  const rows=[['date','field','cows_counted','herd_size','not_seen']];
+  sessions.forEach(s=>rows.push([new Date(s.date).toISOString(),s.name,s.count,s.herd,s.missing.join(' ')]));
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='flock-eyes-counts.csv';a.click();
+}
+
+/* --- wiring --- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.id==='tab-'+b.dataset.tab));
+  renderAll();
+});
+$('#btnCam').onclick=startCamera;
+$('#fileIn').onchange=e=>{openFiles(e.target.files);e.target.value='';};
+$('#btnStop').onclick=()=>{stopAll();setStatus('Stopped');};
+$('#btnReset').onclick=()=>{
+  if(fieldCount()&&!confirm('Discard this count and start a new field?'))return;
+  session=newSession();tracker.tracks=[];octx.clearRect(0,0,ov.width,ov.height);updateCounts(0);
+};
+$('#btnFinish').onclick=async()=>{
+  if(!fieldCount()){toast('Nothing counted yet.');return;}
+  const name=prompt('Field name',`Field ${sessions.length+1}`);if(name===null)return;
+  const missing=cows.filter(c=>!session.cows.has(c.id)).map(c=>c.name);
+  const rec=await DB.addSession({date:Date.now(),name:name.trim()||'Field',count:fieldCount(),herd:cows.length,missing});
+  if(!rec.id)rec.id=sessions.length+1;
+  sessions.push(rec);toast(`Saved: ${rec.count} cows in ${rec.name}`);
+  session=newSession();tracker.tracks=[];octx.clearRect(0,0,ov.width,ov.height);
+  markDirty();persist();renderAll();updateCounts(0);
+};
+$('#btnCsv').onclick=exportCsv;
+$('#btnClearHerd').onclick=()=>{
+  if(!confirm('Delete every cow the app has learned? Saved counts are kept.'))return;
+  cows=[];meta.nextCow=0;rm.mean=null;rm.n=0;session=newSession();tracker.tracks=[];markDirty();persist();renderAll();
+};
+const thr=$('#thr');
+thr.oninput=()=>{cfg.thr=+thr.value;$('#thrVal').textContent=cfg.thr.toFixed(2);localStorage.setItem('fe_thr',cfg.thr);};
+$('#learn').onchange=e=>{cfg.learn=e.target.checked;localStorage.setItem('fe_learn',cfg.learn?'1':'0');};
+
+(async function init(){
+  const st=localStorage.getItem('fe_thr');if(st)cfg.thr=+st;
+  const sl=localStorage.getItem('fe_learn');if(sl!==null)cfg.learn=sl==='1';
+  thr.value=cfg.thr;$('#thrVal').textContent=cfg.thr.toFixed(2);$('#learn').checked=cfg.learn;
+  await DB.open();
+  if(!DB.db)toast('Storage unavailable (private mode?) — the herd will not be remembered.',6000);
+  const m=await DB.get('meta','meta');
+  if(m){meta.nextCow=m.nextCow||0;rm.mean=m.mean||null;rm.n=m.n||0;}
+  cows=await DB.getAll('cows');sessions=await DB.getAll('sessions');
+  renderAll();
+})();
+</script>
+</body>
+</html>
