@@ -41,10 +41,14 @@ jobs:
 
       - name: Install the tools
         run: |
+          set -e -o pipefail
           mkdir -p ci-out
           python -m pip install --upgrade pip > /dev/null
-          pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
-          pip install timm==1.0.12 onnx==1.17.0 onnxruntime==1.20.1 "numpy<2.2" pillow opencv-python-headless huggingface_hub 2>&1 | tail -1
+          # Versions that are known to work together (timm pulls in the newest of everything otherwise).
+          pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tee ci-out/pip.log | tail -1
+          pip install timm==1.0.12 huggingface_hub==0.26.5 safetensors==0.4.5 onnx==1.17.0 onnxruntime==1.20.1 numpy==1.26.4 \
+            pillow opencv-python-headless==4.10.0.84 2>&1 | tee -a ci-out/pip.log | tail -1
+          pip freeze | tee -a ci-out/pip.log | grep -iE "^(torch|torchvision|timm|huggingface|onnx|numpy|opencv)"
 
       - name: Fetch the recognition model and export it
         run: |

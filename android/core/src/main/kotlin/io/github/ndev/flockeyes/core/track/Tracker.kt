@@ -36,6 +36,9 @@ class Track internal constructor(val id: Int, t: Double, box: DoubleArray, score
     var vy = 0.0
     val first: DoubleArray = centre(box)
 
+    /** Where it stood when it was first seen (for the gate: which side of the line it came from). */
+    val firstFoot: DoubleArray = foot(box)
+
     // ------------------------------------------------------------ who it is
     /** Looks of this cow gathered while it's unnamed. */
     val looks = ArrayList<Looked>()

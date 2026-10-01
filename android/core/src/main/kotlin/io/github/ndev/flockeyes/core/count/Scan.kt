@@ -161,6 +161,11 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
             tr.counted = false
             tr.crossings.clear()
             tr.side = 0
+            // Cows in view that aren't named yet are looked at afresh, now that they can be learnt.
+            if (tr.cowId == null) {
+                tr.looks.clear()
+                tr.unknown = false
+            }
         }
     }
 
@@ -205,12 +210,16 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
             }
         }
 
-        val crossed = ArrayList<Track>()
-        val l = line
-        if (l != null) for (tr in live) if (crossing(tr, l, aspect, t)) crossed.add(tr)
-
         val saved = ArrayList<Sighting>()
         val named = ArrayList<Track>()
+        val crossed = ArrayList<Track>()
+        val l = line
+        if (l != null) for (tr in live) {
+            if (!crossing(tr, l, aspect, t)) continue
+            crossed.add(tr)
+            // A cow not named yet has now gone through: time to decide who it is (or learn it).
+            if (tr.cowId == null && tr.looks.isNotEmpty() && resolve(tr, now, last = false)) named.add(tr)
+        }
         if (counting && !session.gate) {
             val inView = live.count { it.hits >= 3 }
             if (inView > session.peak) session.peak = inView
@@ -449,7 +458,14 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         if (side == 0) return false
         val was = tr.side
         tr.side = side
-        if (was == 0 || was == side) return false
+        if (was == side) return false
+        if (was == 0) {
+            // First time clearly on a side: it has crossed only if it was first seen on the other one
+            // (a cow first spotted right by the line).
+            val d0 = Gate.where(line, tr.firstFoot, aspect).first
+            val origin = if (d0 > 0.002) 1 else if (d0 < -0.002) -1 else 0
+            if (origin == 0 || origin == side) return false
+        }
         // Past the end of the line isn't through the gate.
         if (along < -0.1 || along > 1.1) return false
         if (!counting || !session.gate) return false
