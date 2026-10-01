@@ -1,0 +1,235 @@
+{
+ "photos": 1237,
+ "cows": 136,
+ "boxed": 1192,
+ "rows": [
+  {
+   "name": "MegaDescriptor-T-224 (Swin-T, 28M)",
+   "id": "hf-hub:BVRA/MegaDescriptor-T-224",
+   "size": 224,
+   "params_m": 27.5,
+   "boxed": {
+    "top1": 0.33387227162489896,
+    "match": 0.95,
+    "kept": 0.024252223120452707,
+    "named_right": 0.021018593371059015,
+    "eer": 0.5804365400161682,
+    "genuine_mean": 0.8196094036102295,
+    "impostor_mean": 0.8642716407775879,
+    "ms": 87.02627978405842,
+    "dim": 768
+   },
+   "whole": {
+    "top1": 0.07437348423605497,
+    "match": 0.95,
+    "kept": 0.48100242522231207,
+    "named_right": 0.07033144704931285,
+    "eer": 0.7049312853678253,
+    "genuine_mean": 0.9284191131591797,
+    "impostor_mean": 0.9646786451339722,
+    "ms": 87.05813034754563,
+    "dim": 768
+   }
+  },
+  {
+   "name": "MegaDescriptor-T-224, ImageNet scaling",
+   "id": "hf-hub:BVRA/MegaDescriptor-T-224",
+   "size": 224,
+   "params_m": 27.5,
+   "boxed": {
+    "top1": 0.3217461600646726,
+    "match": 0.95,
+    "kept": 0.021018593371059015,
+    "named_right": 0.021018593371059015,
+    "eer": 0.5792239288601455,
+    "genuine_mean": 0.8279898166656494,
+    "impostor_mean": 0.8716446161270142,
+    "ms": 87.12689126800315,
+    "dim": 768
+   },
+   "whole": {
+    "top1": 0.07599029911075182,
+    "match": 0.95,
+    "kept": 0.3395311236863379,
+    "named_right": 0.07437348423605497,
+    "eer": 0.761519805982215,
+    "genuine_mean": 0.9221209287643433,
+    "impostor_mean": 0.9611080288887024,
+    "ms": 87.07733624580895,
+    "dim": 768
+   }
+  },
+  {
+   "name": "MegaDescriptor-S-224 (Swin-S, 50M)",
+   "id": "hf-hub:BVRA/MegaDescriptor-S-224",
+   "size": 224,
+   "params_m": 48.8,
+   "boxed": {
+    "top1": 0.4244139046079224,
+    "match": 0.93,
+    "kept": 0.014551333872271624,
+    "named_right": 0.014551333872271624,
+    "eer": 0.5291026677445432,
+    "genuine_mean": 0.7630739808082581,
+    "impostor_mean": 0.8062615990638733,
+    "ms": 159.9346866700181,
+    "dim": 768
+   },
+   "whole": {
+    "top1": 0.11236863379143087,
+    "match": 0.95,
+    "kept": 0.05092966855295069,
+    "named_right": 0.04284559417946645,
+    "eer": 0.7126111560226354,
+    "genuine_mean": 0.8824309706687927,
+    "impostor_mean": 0.931083083152771,
+    "ms": 159.98756297673538,
+    "dim": 768
+   }
+  },
+  {
+   "name": "MegaDescriptor-B-224 (Swin-B, 88M)",
+   "id": "hf-hub:BVRA/MegaDescriptor-B-224",
+   "size": 224,
+   "params_m": 86.7,
+   "boxed": {
+    "top1": 0.4737267582861762,
+    "match": 0.95,
+    "kept": 0.0137429264349232,
+    "named_right": 0.010509296685529508,
+    "eer": 0.5137429264349231,
+    "genuine_mean": 0.7862477898597717,
+    "impostor_mean": 0.8228133916854858,
+    "ms": 267.4465813555829,
+    "dim": 1024
+   },
+   "whole": {
+    "top1": 0.17946645109135004,
+    "match": 0.95,
+    "kept": 0.35246564268391267,
+    "named_right": 0.13096200485044462,
+    "eer": 0.6333872271624899,
+    "genuine_mean": 0.9179726839065552,
+    "impostor_mean": 0.9466803669929504,
+    "ms": 267.6237080496169,
+    "dim": 1024
+   }
+  },
+  {
+   "name": "MegaDescriptor-L-384 (Swin-L, 228M)",
+   "id": "hf-hub:BVRA/MegaDescriptor-L-384",
+   "size": 384,
+   "params_m": 195.2,
+   "boxed": {
+    "top1": 0.5044462409054163,
+    "match": 0.93,
+    "kept": 0.025869037995149554,
+    "named_right": 0.023443815683104285,
+    "eer": 0.4636216653193209,
+    "genuine_mean": 0.7598719000816345,
+    "impostor_mean": 0.7847933173179626,
+    "ms": 1593.233325545019,
+    "dim": 1536
+   },
+   "whole": {
+    "top1": 0.3694421988682296,
+    "match": 0.95,
+    "kept": 0.1099434114793856,
+    "named_right": 0.09620048504446241,
+    "eer": 0.563055780113177,
+    "genuine_mean": 0.8889572620391846,
+    "impostor_mean": 0.9152702689170837,
+    "ms": 1592.6641685498175,
+    "dim": 1536
+   }
+  },
+  {
+   "name": "MegaDescriptor-T-CNN-288 (EfficientNet)",
+   "error": "UnpicklingError('Weights only load failed. This file can still be loaded, to do so you have two options, \\x1b[1mdo those steps only if you trust the source of the checkpoint\\x1b[0m. \\n\\t(1) Re-running"
+  },
+  {
+   "name": "DINOv2 ViT-S/14 (22M, Apache 2.0)",
+   "id": "vit_small_patch14_dinov2.lvd142m",
+   "size": 224,
+   "params_m": 21.6,
+   "boxed": {
+    "top1": 0.4058205335489086,
+    "match": 0.95,
+    "kept": 0.034761519805982216,
+    "named_right": 0.034761519805982216,
+    "eer": 0.5371867421180275,
+    "genuine_mean": 0.898247241973877,
+    "impostor_mean": 0.9132304787635803,
+    "ms": 101.34725331681913,
+    "dim": 384
+   },
+   "whole": {
+    "top1": 0.1713823767178658,
+    "match": 0.95,
+    "kept": 0.06709781729991916,
+    "named_right": 0.0646725949878739,
+    "eer": 0.6637025060630557,
+    "genuine_mean": 0.9150944948196411,
+    "impostor_mean": 0.9348596334457397,
+    "ms": 101.42344414657803,
+    "dim": 384
+   }
+  },
+  {
+   "name": "DINOv2 ViT-B/14 (87M, Apache 2.0)",
+   "id": "vit_base_patch14_dinov2.lvd142m",
+   "size": 224,
+   "params_m": 85.7,
+   "boxed": {
+    "top1": 0.3694421988682296,
+    "match": 0.95,
+    "kept": 0.07033144704931285,
+    "named_right": 0.07033144704931285,
+    "eer": 0.5582053354890866,
+    "genuine_mean": 0.9039019346237183,
+    "impostor_mean": 0.9179943799972534,
+    "ms": 336.1866479933792,
+    "dim": 768
+   },
+   "whole": {
+    "top1": 0.2611156022635408,
+    "match": 0.95,
+    "kept": 0.1438965238480194,
+    "named_right": 0.10670978172999192,
+    "eer": 0.5949878738884398,
+    "genuine_mean": 0.9279655814170837,
+    "impostor_mean": 0.9381166696548462,
+    "ms": 336.6904050569526,
+    "dim": 768
+   }
+  },
+  {
+   "name": "MobileNetV3 ImageNet features (what the web version uses)",
+   "id": "mobilenetv3_large_100.ra_in1k",
+   "size": 224,
+   "params_m": 4.2,
+   "boxed": {
+    "top1": 0.3459983831851253,
+    "match": 0.94,
+    "kept": 0.010509296685529508,
+    "named_right": 0.010509296685529508,
+    "eer": 0.5614389652384801,
+    "genuine_mean": 0.8069141507148743,
+    "impostor_mean": 0.8479467630386353,
+    "ms": 5.360211493415801,
+    "dim": 1280
+   },
+   "whole": {
+    "top1": 0.10185933710590138,
+    "match": 0.95,
+    "kept": 0.05578011317704123,
+    "named_right": 0.046079223928860144,
+    "eer": 0.7542441390460792,
+    "genuine_mean": 0.8935685157775879,
+    "impostor_mean": 0.9380741119384766,
+    "ms": 5.466513992223223,
+    "dim": 1280
+   }
+  }
+ ]
+}

@@ -1,0 +1,42 @@
+dataset files: [('subset1.zip', 130322403), ('subset2.zip', 105465628), ('subset3.zip', 114573608), ('subset4.zip', 113164008), ('subset5.zip', 60992589)]
+  downloaded subset1.zip 130322403 bytes in 7 s
+  downloaded subset2.zip 105465628 bytes in 6 s
+  downloaded subset3.zip 114573608 bytes in 6 s
+  downloaded subset4.zip 113164008 bytes in 6 s
+  downloaded subset5.zip 60992589 bytes in 5 s
+1237 photos of 136 cows; the cow finder boxed 1192
+MegaDescriptor-T-224 (Swin-T, 28M) [boxed]: top-1 0.334; at threshold 0.95: 0.024 kept, 0.021 named right; genuine 0.820 impostor 0.864; 87 ms a photo; 27.5M parameters
+MegaDescriptor-T-224 (Swin-T, 28M) [whole]: top-1 0.074; at threshold 0.95: 0.481 kept, 0.070 named right; genuine 0.928 impostor 0.965; 87 ms a photo; 27.5M parameters
+MegaDescriptor-T-224, ImageNet scaling [boxed]: top-1 0.322; at threshold 0.95: 0.021 kept, 0.021 named right; genuine 0.828 impostor 0.872; 87 ms a photo; 27.5M parameters
+MegaDescriptor-T-224, ImageNet scaling [whole]: top-1 0.076; at threshold 0.95: 0.340 kept, 0.074 named right; genuine 0.922 impostor 0.961; 87 ms a photo; 27.5M parameters
+MegaDescriptor-S-224 (Swin-S, 50M) [boxed]: top-1 0.424; at threshold 0.93: 0.015 kept, 0.015 named right; genuine 0.763 impostor 0.806; 160 ms a photo; 48.8M parameters
+MegaDescriptor-S-224 (Swin-S, 50M) [whole]: top-1 0.112; at threshold 0.95: 0.051 kept, 0.043 named right; genuine 0.882 impostor 0.931; 160 ms a photo; 48.8M parameters
+MegaDescriptor-B-224 (Swin-B, 88M) [boxed]: top-1 0.474; at threshold 0.95: 0.014 kept, 0.011 named right; genuine 0.786 impostor 0.823; 267 ms a photo; 86.7M parameters
+MegaDescriptor-B-224 (Swin-B, 88M) [whole]: top-1 0.179; at threshold 0.95: 0.352 kept, 0.131 named right; genuine 0.918 impostor 0.947; 268 ms a photo; 86.7M parameters
+MegaDescriptor-L-384 (Swin-L, 228M) [boxed]: top-1 0.504; at threshold 0.93: 0.026 kept, 0.023 named right; genuine 0.760 impostor 0.785; 1593 ms a photo; 195.2M parameters
+MegaDescriptor-L-384 (Swin-L, 228M) [whole]: top-1 0.369; at threshold 0.95: 0.110 kept, 0.096 named right; genuine 0.889 impostor 0.915; 1593 ms a photo; 195.2M parameters
+MegaDescriptor-T-CNN-288 (EfficientNet): not available (UnpicklingError('Weights only load failed. This file can still be loaded, to do so you have two options, \x1b[1mdo those steps only if you trust the source of t)
+DINOv2 ViT-S/14 (22M, Apache 2.0) [boxed]: top-1 0.406; at threshold 0.95: 0.035 kept, 0.035 named right; genuine 0.898 impostor 0.913; 101 ms a photo; 21.6M parameters
+DINOv2 ViT-S/14 (22M, Apache 2.0) [whole]: top-1 0.171; at threshold 0.95: 0.067 kept, 0.065 named right; genuine 0.915 impostor 0.935; 101 ms a photo; 21.6M parameters
+DINOv2 ViT-B/14 (87M, Apache 2.0) [boxed]: top-1 0.369; at threshold 0.95: 0.070 kept, 0.070 named right; genuine 0.904 impostor 0.918; 336 ms a photo; 85.7M parameters
+DINOv2 ViT-B/14 (87M, Apache 2.0) [whole]: top-1 0.261; at threshold 0.95: 0.144 kept, 0.107 named right; genuine 0.928 impostor 0.938; 337 ms a photo; 85.7M parameters
+MobileNetV3 ImageNet features (what the web version uses) [boxed]: top-1 0.346; at threshold 0.94: 0.011 kept, 0.011 named right; genuine 0.807 impostor 0.848; 5 ms a photo; 4.2M parameters
+MobileNetV3 ImageNet features (what the web version uses) [whole]: top-1 0.102; at threshold 0.95: 0.056 kept, 0.046 named right; genuine 0.894 impostor 0.938; 5 ms a photo; 4.2M parameters
+# Recognition models compared
+
+1237 side-on photos of 136 Holstein cows behind rails (CC0, <https://doi.org/10.34894/O1ZBSA>). The cow finder boxed the cow in 1192. Top-1: the most alike other photo is the same cow.
+
+| Model | Parameters | Top-1, cow boxed | Top-1, whole photo | Named right at the 2% threshold (boxed) | Time a photo |
+|---|---|---|---|---|---|
+| MegaDescriptor-T-224 (Swin-T, 28M) | 27.5M | 33.4% | 7.4% | 2.1% | 87 ms |
+| MegaDescriptor-T-224, ImageNet scaling | 27.5M | 32.2% | 7.6% | 2.1% | 87 ms |
+| MegaDescriptor-S-224 (Swin-S, 50M) | 48.8M | 42.4% | 11.2% | 1.5% | 160 ms |
+| MegaDescriptor-B-224 (Swin-B, 88M) | 86.7M | 47.4% | 17.9% | 1.1% | 267 ms |
+| MegaDescriptor-L-384 (Swin-L, 228M) | 195.2M | 50.4% | 36.9% | 2.3% | 1593 ms |
+| MegaDescriptor-T-CNN-288 (EfficientNet) | | not available | | | |
+| DINOv2 ViT-S/14 (22M, Apache 2.0) | 21.6M | 40.6% | 17.1% | 3.5% | 101 ms |
+| DINOv2 ViT-B/14 (87M, Apache 2.0) | 85.7M | 36.9% | 26.1% | 7.0% | 336 ms |
+| MobileNetV3 ImageNet features (what the web version uses) | 4.2M | 34.6% | 10.2% | 1.1% | 5 ms |
+
+Times are PyTorch on GitHub's machine, for comparing the models with each other, not what a phone takes.
+
