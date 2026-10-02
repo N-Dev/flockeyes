@@ -9,10 +9,10 @@ your herd. Read it as what to expect at best, not a promise.
   recognition, and it is the dependable part.
 - **Seen again a moment later** (it left the picture and came back, or the app lost it behind another
   cow): in fields, looks of one cow are much more alike than looks of different cows, and the app mostly
-  gets this right. In the barn photos it is right 70% of the time and otherwise
+  gets this right. In the barn photos it is right 65% of the time and otherwise
   usually says nothing rather than something wrong.
 - **Seen again another day**: unproven in fields (there are no photos to measure it on), and poor in the
-  barn photos: 5% named right, 0% named wrong, the rest not named
+  barn photos: 4% named right, 1% named wrong, the rest not named
   (so the cow is learnt a second time, to be merged by hand in the Herd tab).
 - A cow's two sides look different, and cows with plain coats look the same. Neither can be fixed by a
   better threshold.
@@ -23,8 +23,8 @@ your herd. Read it as what to expect at best, not a promise.
 <https://huggingface.co/BVRA/MegaDescriptor-T-224>, CC BY-NC 4.0), exported to ONNX. The app ships the
 **8-bit** version (30 MB): on the barn photos
 the two give the same answers (most alike other photo is the same cow: full 33.4%, 8-bit
-33.2%; their descriptions agree to 0.980). A photo takes 147 ms (full) or
-109 ms (8-bit) on GitHub's machine with two threads.
+33.5%; their descriptions agree to 0.980). A photo takes 57 ms (full) or
+29 ms (8-bit) on GitHub's machine with two threads.
 
 **The tuning** (`models/cow-tuning.bin`, made by `tools/make_tuning.py`). The model's description of a
 picture changes with how the cow stands, how its box was cut and what's behind it, as well as with which
@@ -48,7 +48,7 @@ cow finder and tracker. 274 looks of 49 tracked cows.
 |---|---|---|
 | Two looks of one tracked cow, 2 s or more apart: how alike (average; lowest 5%) | 0.86; 0.62 | 0.83; 0.54 |
 | Looks of two cows in view together: how alike (average; highest 5%) | 0.39; 0.68 | 0.32; 0.52 |
-| One cow's pair is the more alike of the two (chance: 50%) | 98.3% | 99.2% |
+| One cow's pair is the more alike of the two (chance: 50%) | 98.3% | 99.3% |
 | Pairs of one cow at least 0.55 alike | | 94% |
 | Pairs of different cows at least 0.55 alike | | 2.7% |
 
@@ -67,14 +67,14 @@ belly, and the camera was moved between days. The cow finder boxed the cow in 11
 
 | | Plain | Tuned |
 |---|---|---|
-| The most alike other photo (of 1236) is the same cow | 33.2% | 47.0% |
-| **A moment later** (the same photo, its box moved a little, lighter or darker, smaller; 413 looks): named right | 9% | 70% |
+| The most alike other photo (of 1236) is the same cow | 33.5% | 47.0% |
+| **A moment later** (the same photo, its box moved a little, lighter or darker, smaller; 413 looks): named right | 8% | 65% |
 | ... named wrong | 0.0% | 0.0% |
-| ... a cow that isn't in the herd given another cow's name | 0.0% | 0.7% |
-| **Another day** (the herd knows each cow from its first five photos; 557 later photos, one look each): named right | 0% | 5% |
-| ... named wrong | 0.0% | 0.4% |
+| ... a cow that isn't in the herd given another cow's name | 0.0% | 1.2% |
+| **Another day** (the herd knows each cow from its first five photos; 557 later photos, one look each): named right | 0% | 4% |
+| ... named wrong | 0.0% | 0.5% |
 | ... not named (it would be learnt again as a new cow) | 100% | 95% |
-| ... a cow that isn't in the herd given another cow's name | 0.2% | 1.3% |
+| ... a cow that isn't in the herd given another cow's name | 0.2% | 1.4% |
 
 In the app a cow gets up to eight looks before it's named and its entry holds up to twelve, gathered as
 it moves; here each look stood alone, which is harder.
