@@ -26,8 +26,9 @@ fun normalize(v: FloatArray): FloatArray {
  * How the recognition model is fed and how its answers are judged (models/cow-reid.json, written when the
  * model is prepared and measured).
  *
- * `match`: two looks at least this alike are taken for the same cow. `fresh`: a cow less like every known
- * cow than this is new. Between the two the app waits for more looks.
+ * A cow is named when it looks at least `match` like a cow in the herd and that cow is `margin` clear of
+ * the next most alike. A cow less than `fresh` like every known cow is new. Between the two the app waits
+ * for more looks. These are for looks as the tuning sees them (see [Tuning]; `tuning` is its file).
  */
 class ReidConfig(
     val key: String = "none",
@@ -38,6 +39,7 @@ class ReidConfig(
     val match: Double = 0.5,
     val fresh: Double = 0.4,
     val margin: Double = 0.04,
+    val tuning: String = "",
     val name: String = "",
     val licence: String = "",
     val notes: String = "",
@@ -57,6 +59,7 @@ class ReidConfig(
                 match = match,
                 fresh = num("fresh", match - 0.1),
                 margin = num("margin", 0.04),
+                tuning = m["tuning"] as? String ?: "",
                 name = m["name"] as? String ?: "",
                 licence = m["licence"] as? String ?: "",
                 notes = m["notes"] as? String ?: "",

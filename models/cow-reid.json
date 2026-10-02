@@ -15,8 +15,9 @@
     0.5
   ],
   "dim": 768,
-  "match": 0.95,
-  "fresh": 0.87,
-  "margin": 0.04,
-  "notes": "Thresholds from 1237 side-on photos of 136 Holstein cows (doi:10.34894/O1ZBSA): top-1 33.5%."
+  "match": 0.55,
+  "fresh": 0.42,
+  "margin": 0.12,
+  "tuning": "cow-tuning.bin",
+  "notes": "The bars are for looks seen through the tuning (tools/make_tuning.py); what they achieve is in docs/recognition.md."
 }

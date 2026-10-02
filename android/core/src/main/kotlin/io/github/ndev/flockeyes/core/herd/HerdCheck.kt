@@ -2,7 +2,7 @@ package io.github.ndev.flockeyes.core.herd
 
 import io.github.ndev.flockeyes.core.reid.dot
 
-/** Two cows in the herd and how alike their most alike looks are (0 to 1). */
+/** Two cows in the herd and how alike their most alike looks are (as the herd's tuning sees them). */
 class Alike(val a: Cow, val b: Cow, val score: Double)
 
 /** Looks for cows learnt twice, and says how well the herd's cows are told apart. */
@@ -11,7 +11,7 @@ object HerdCheck {
     fun alike(a: Cow, b: Cow): Double {
         var best = -1.0
         for (va in a.views) for (vb in b.views) {
-            val s = dot(va.emb, vb.emb)
+            val s = dot(va.tuned, vb.tuned)
             if (s > best) best = s
         }
         return best

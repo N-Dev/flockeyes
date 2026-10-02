@@ -1,4 +1,4 @@
-# Test photos
+# Barn photos
 
 Side-on photos of Holstein cows from "Holstein Cattle Recognition" (A. Bhole, O. Falzon, M. Biehl, G. Azzopardi; Dairy Campus, Leeuwarden), published under CC0 1.0: <https://doi.org/10.34894/O1ZBSA>.
 

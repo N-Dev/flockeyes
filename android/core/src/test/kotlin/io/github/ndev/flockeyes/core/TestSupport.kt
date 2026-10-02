@@ -4,6 +4,7 @@ import io.github.ndev.flockeyes.core.image.Frame
 import io.github.ndev.flockeyes.core.net.Net
 import io.github.ndev.flockeyes.core.net.Tensor
 import io.github.ndev.flockeyes.core.reid.ReidConfig
+import io.github.ndev.flockeyes.core.reid.Tuning
 import java.awt.RenderingHints
 import java.awt.geom.AffineTransform
 import java.awt.image.BufferedImage
@@ -39,6 +40,18 @@ object Repo {
                 (m["embedding"] as? List<Double>)?.map { it.toFloat() }?.toFloatArray(),
             )
         }
+    }
+
+    /** A picture of one cow cut from a video (tests/assets/singles): "cow_a1" and "cow_a2" are two of cow a. */
+    fun single(name: String): BufferedImage = ImageIO.read(file("tests/assets/singles/$name.jpg"))
+
+    /** A video's frames in order (tests/assets/clips). */
+    fun clip(name: String): List<File> = file("tests/assets/clips/$name").listFiles { f -> f.extension == "jpg" }!!.sortedBy { it.name }
+
+    /** The tuning that goes with the recognition model (models/cow-tuning.bin), if it's there. */
+    val tuning: Tuning? by lazy {
+        val name = reidConfig.tuning
+        if (name.isEmpty() || !file("models/$name").exists()) null else Tuning.read(file("models/$name").readBytes())
     }
 
     /** The model the expected answers were worked out with. */

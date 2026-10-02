@@ -1,0 +1,259 @@
+package io.github.ndev.flockeyes
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.ndev.flockeyes.herd.HerdScreen
+import io.github.ndev.flockeyes.history.HistoryScreen
+import io.github.ndev.flockeyes.scan.FieldTab
+import io.github.ndev.flockeyes.scan.GateTab
+import io.github.ndev.flockeyes.settings.SettingsScreen
+import io.github.ndev.flockeyes.settings.SpeedTestOffer
+import io.github.ndev.flockeyes.ui.C
+import io.github.ndev.flockeyes.ui.FlockEyesTheme
+import io.github.ndev.flockeyes.ui.Ic
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        handleShare(intent)
+        setContent { FlockEyesTheme { FlockEyesApp() } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleShare(intent)
+    }
+
+    /** A video shared to the app: its cows are counted (the Field tab opens it). */
+    private fun handleShare(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val uri: Uri? = if (Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        }
+        if (uri != null) App.instance.openVideo.value = uri
+    }
+}
+
+enum class Tab(val label: String) { FIELD("Field"), GATE("Gate"), HERD("Herd"), HISTORY("Counts"), SETTINGS("Settings") }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FlockEyesApp() {
+    val app = App.instance
+    var tab by rememberSaveable { mutableStateOf(Tab.FIELD) }
+    val field by app.field.ui.collectAsState()
+    val gate by app.gate.ui.collectAsState()
+    val video by app.openVideo.collectAsState()
+    val openCount by app.openCount.collectAsState()
+    val openCow by app.openCow.collectAsState()
+    val update by app.updates.available.collectAsState()
+    LaunchedEffect(video) { if (video != null) tab = Tab.FIELD }
+    LaunchedEffect(openCount) { if (openCount != null) tab = Tab.HISTORY }
+    LaunchedEffect(openCow) { if (openCow != null) tab = Tab.HERD }
+    // While counting, the counting screen has the whole screen (and the tabs can't stop it by accident).
+    val fullScreen = (tab == Tab.FIELD && field.running) || (tab == Tab.GATE && gate.running)
+
+    // Which way round: as chosen (turn with the phone, portrait or landscape); the Gate tab keeps to the
+    // way round its line was set up, as it only fits the picture that way.
+    val activity = LocalContext.current as? Activity
+    val prefs = app.prefs
+    val wanted = if (tab == Tab.GATE && prefs.gateOrientation.isNotEmpty()) prefs.gateOrientation else prefs.orientation
+    LaunchedEffect(wanted) {
+        activity?.requestedOrientation = when (wanted) {
+            "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    Scaffold(
+        containerColor = C.bg,
+        // Each screen places itself around the status bar; the tab bar looks after the navigation bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            if (!fullScreen) {
+                NavigationBar(containerColor = C.surface, tonalElevation = 0.dp) {
+                    for (t in Tab.entries) {
+                        NavigationBarItem(
+                            modifier = Modifier.testTag("tab-${t.name.lowercase()}"),
+                            selected = tab == t,
+                            onClick = { tab = t },
+                            icon = {
+                                // A dot on Settings when a newer Flock Eyes is out.
+                                if (t == Tab.SETTINGS && update != null) {
+                                    BadgedBox(badge = { Badge(containerColor = C.sky) }) { Icon(iconFor(t), contentDescription = null) }
+                                } else {
+                                    Icon(iconFor(t), contentDescription = null)
+                                }
+                            },
+                            label = { Text(t.label, maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = C.bg,
+                                indicatorColor = C.accent,
+                                selectedTextColor = C.text,
+                                unselectedIconColor = C.muted,
+                                unselectedTextColor = C.muted,
+                            ),
+                        )
+                    }
+                }
+            }
+        },
+    ) { pad ->
+        Box(
+            Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .then(if (fullScreen) Modifier.navigationBarsPadding() else Modifier)
+                .background(C.bg),
+        ) {
+            when (tab) {
+                Tab.FIELD -> FieldTab()
+                Tab.GATE -> GateTab()
+                Tab.HERD -> HerdScreen()
+                Tab.HISTORY -> HistoryScreen()
+                Tab.SETTINGS -> SettingsScreen()
+            }
+        }
+    }
+    // First launch: offer the speed test.
+    SpeedTestOffer()
+}
+
+private fun iconFor(t: Tab): ImageVector = when (t) {
+    Tab.FIELD -> Ic.field
+    Tab.GATE -> Ic.gate
+    Tab.HERD -> Ic.cow
+    Tab.HISTORY -> Ic.history
+    Tab.SETTINGS -> Icons.Filled.Settings
+}
+
+/**
+ * Shows the screen once the camera is allowed; asks for it otherwise. `extra` adds something that works
+ * without the camera (counting a video).
+ */
+@Composable
+fun CameraGate(extra: (@Composable () -> Unit)? = null, content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    var granted by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    var asked by rememberSaveable { mutableStateOf(false) }
+    val activity = context as? Activity
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        granted = ok
+        asked = true
+    }
+    LaunchedEffect(Unit) { if (!granted && !asked) launcher.launch(Manifest.permission.CAMERA) }
+    if (granted) {
+        content()
+    } else {
+        Column(
+            Modifier.fillMaxSize().padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Camera needed", color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Flock Eyes finds and recognises cows through the camera. Everything is analysed on this phone and nothing is uploaded.",
+                color = C.muted,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = {
+                    // After "Don't allow" twice Android stops asking: the app's settings page is the way then.
+                    if (asked && activity?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA) } == false) {
+                        runCatching {
+                            context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+                        }
+                    } else {
+                        launcher.launch(Manifest.permission.CAMERA)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = C.accent, contentColor = C.onAccent),
+            ) { Text("Allow the camera") }
+            if (extra != null) {
+                Spacer(Modifier.height(12.dp))
+                extra()
+            }
+        }
+    }
+    // Back from the app's settings page with the camera allowed.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME && !granted) {
+                granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+}

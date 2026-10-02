@@ -12,7 +12,11 @@ class Obs(val t: Double, val box: DoubleArray)
  * A look at a tracked cow: its picture (ARGB, the model's square, squashed from a box `aspect` = height /
  * width), what the recognition model made of it, and how good a picture it was (0 to 1).
  */
-class Looked(val emb: FloatArray, val px: IntArray?, val aspect: Double, val quality: Double, val t: Double)
+class Looked(val emb: FloatArray, val px: IntArray?, val aspect: Double, val quality: Double, val t: Double) {
+    /** The description as the herd's tuning saw it, and which tuning that was (see Herd.see). */
+    var tuned: FloatArray? = null
+    var tuneVersion = -1
+}
 
 /** A possible name for a tracked cow: a cow in the herd and how alike they look (0 to 1). */
 class Candidate(val cowId: Int, val score: Double)
@@ -71,6 +75,20 @@ class Track internal constructor(val id: Int, t: Double, box: DoubleArray, score
 
     /** Never overlapped another animal: its samples are certainly all of the one cow. */
     var clean = true
+
+    /**
+     * It has been in among other animals (or lost for a moment) since its looks last agreed with its
+     * name: the track may have slipped onto another cow. While this is false the track has been followed
+     * without a break, so it is the same animal however it looks now.
+     */
+    var mixed = false
+
+    /** Not named because what it looks most like is a cow in view on another track (see Scan.resolve). */
+    var taken = false
+
+    /** The best score the cow finder has given it, and its box's shape (height / width) at the last look. */
+    var topScore = score
+    var lookShape = 0.0
 
     /** Why no sample was taken at the last look (for debug mode): "edge", "small", "overlap", "cut", or "". */
     var skipped = ""
@@ -183,8 +201,11 @@ class Tracker(var aspect: Double = 9.0 / 16, private val maxAge: Double = 1500.0
         tr.prev = tr.obs.lastOrNull()
         tr.obs.add(Obs(t, d.box))
         if (tr.obs.size > 60) tr.obs.removeAt(0)
+        // Missed for a moment and picked up again: it may not be the same animal.
+        if (tr.hits > 0 && t - tr.lastT > 700) tr.mixed = true
         tr.box = d.box
         tr.score = d.score
+        if (d.score > tr.topScore) tr.topScore = d.score
         tr.cut = d.cut
         tr.lastT = t
         tr.hits++

@@ -1,12 +1,17 @@
 package io.github.ndev.flockeyes.core.herd
 
+import io.github.ndev.flockeyes.core.reid.Tuning
 import io.github.ndev.flockeyes.core.reid.dot
 
 /**
  * One look of a cow: what the recognition model made of a picture of it (a unit vector). `ref` is where
  * the app keeps the picture itself (0 until it's saved).
  */
-class View(val emb: FloatArray, val added: Long, val quality: Double, var ref: Long = 0)
+class View(val emb: FloatArray, val added: Long, val quality: Double, var ref: Long = 0) {
+    /** The look as the herd's tuning sees it (see [Herd.tuning]); the plain description until there is one. */
+    var tuned: FloatArray = emb
+        internal set
+}
 
 /** A cow the app knows: its name or tag, and a few looks of it from different angles. */
 class Cow(val id: Int, var name: String, var tag: String = "", var note: String = "", val created: Long = 0) {
@@ -19,8 +24,18 @@ class Cow(val id: Int, var name: String, var tag: String = "", var note: String 
     /** What to call it on screen: its tag if it has one, else its name. */
     val label: String get() = if (tag.isNotBlank()) tag else name
 
-    /** How like this cow a look is: the best match among its views. */
-    fun similarity(emb: FloatArray): Double {
+    /** How like this cow a look is: the best match among its views. `tuned`: the look as [Herd.see] gives it. */
+    fun similarity(tuned: FloatArray): Double {
+        var best = -1.0
+        for (v in views) {
+            val s = dot(tuned, v.tuned)
+            if (s > best) best = s
+        }
+        return best
+    }
+
+    /** The same on the plain descriptions (for telling whether a look is one the cow already has). */
+    fun plainSimilarity(emb: FloatArray): Double {
         var best = -1.0
         for (v in views) {
             val s = dot(emb, v.emb)
@@ -78,8 +93,37 @@ class Herd(var maxViews: Int = 12) {
     val size: Int get() = list.size
     operator fun get(id: Int): Cow? = byId[id]
 
+    // ---------------------------------------------------------------- the yardstick
+
+    /** How looks are compared (see [Tuning]); null: the model's plain descriptions. Looks are compared as [see] gives them. */
+    var tuning: Tuning? = null
+        private set
+
+    /** Bumped whenever the tuning changes: looks seen with an older one are out of date. */
+    var tuneVersion = 0
+        private set
+
+    /** A look as the tuning sees it (the plain description if there's no tuning). */
+    fun see(emb: FloatArray): FloatArray = tuning?.apply(emb) ?: emb
+
+    /** Takes up a tuning (null: none), and sees every look in the herd afresh. */
+    fun retune(t: Tuning?) {
+        tuning = t
+        for (c in list) for (v in c.views) v.tuned = t?.apply(v.emb) ?: v.emb
+        tuneVersion++
+        version++
+    }
+
+    /** Puts back one look of a cow read from storage (no listener calls). */
+    fun restoreView(cow: Cow, view: View) {
+        view.tuned = see(view.emb)
+        cow.views.add(view)
+        version++
+    }
+
     /** Puts back a cow read from storage (no listener calls). */
     fun restore(cow: Cow) {
+        for (v in cow.views) v.tuned = see(v.emb)
         byId[cow.id]?.let { list.remove(it) }
         list.add(cow)
         byId[cow.id] = cow
@@ -109,8 +153,9 @@ class Herd(var maxViews: Int = 12) {
      * dropping the look that added least. Returns whether it was added.
      */
     fun addView(cow: Cow, emb: FloatArray, quality: Double, now: Long, px: IntArray?, aspect: Double, dup: Double = 0.92): Boolean {
-        if (cow.views.isNotEmpty() && cow.similarity(emb) >= dup) return false
+        if (cow.views.isNotEmpty() && cow.plainSimilarity(emb) >= dup) return false
         val v = View(emb, now, quality)
+        v.tuned = see(emb)
         cow.views.add(v)
         if (cow.views.size > maxViews) {
             val i = cow.mostRedundant()

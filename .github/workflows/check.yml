@@ -1,0 +1,61 @@
+# A quick check while the app is being worked on (the wip branch): compiles the app and its on-device
+# tests and runs the unit tests, without the emulator. The log goes to the check-ci branch.
+name: Quick check
+
+on:
+  push:
+    branches: [wip]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: quick-check
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile and run the unit tests
+        working-directory: android
+        run: |
+          set -o pipefail
+          mkdir -p ../ci-out
+          ./gradlew --no-daemon --continue :core:test :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin 2>&1 | tee ../ci-out/build.log
+
+      - name: Publish the log (check-ci branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          mkdir -p ci-out
+          cp -r android/core/build/test-results ci-out/core-test-results 2>/dev/null || true
+          grep -E "^e: |error:|FAILED|BUILD|Test.*(PASSED|FAILED)|passed|failed" ci-out/build.log > ci-out/summary.txt || true
+          {
+            echo "# Quick check run ${GITHUB_RUN_NUMBER}"
+            echo
+            echo "Commit ${GITHUB_SHA}, $(date -u), job status: ${JOB_STATUS}"
+          } > ci-out/README.md
+          cd ci-out
+          git init -q -b check-ci
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Quick check run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:check-ci

@@ -12,6 +12,7 @@ import io.github.ndev.flockeyes.core.herd.HerdListener
 import io.github.ndev.flockeyes.core.herd.View
 import io.github.ndev.flockeyes.core.reid.Embedder
 import io.github.ndev.flockeyes.core.reid.ReidConfig
+import io.github.ndev.flockeyes.core.reid.Tuning
 import io.github.ndev.flockeyes.core.reid.normalize
 import org.junit.Test
 import java.util.Random
@@ -26,7 +27,11 @@ import kotlin.test.assertTrue
  * cow's "looks" are a fixed random vector plus a little noise, as a recognition model's answers would be
  * (two looks of one cow about 0.9 alike, looks of different cows about 0).
  */
-class Field(val herd: Herd = Herd(), val opt: ScanOptions = ScanOptions(), val looks: HashMap<Int, FloatArray> = HashMap(), seed: Long = 7) {
+class Field(
+    val herd: Herd = Herd(), val opt: ScanOptions = ScanOptions(), val looks: HashMap<Int, FloatArray> = HashMap(), seed: Long = 7,
+    /** A real place: see [Place]. Null: looks of different cows have nothing in common. */
+    val place: Place? = null,
+) {
     val scan = Scan(herd, opt, Embedder(ReidConfig(dim = DIM)))
     private val frame = BlankFrame()
     private val rnd = Random(seed)
@@ -53,7 +58,9 @@ class Field(val herd: Herd = Herd(), val opt: ScanOptions = ScanOptions(), val l
 
     fun lookOf(cow: Int, noise: Double = 0.3): FloatArray {
         val b = base(disguise[cow] ?: cow)
-        return normalize(FloatArray(DIM) { (b[it] + noise * rnd.nextGaussian() / Math.sqrt(DIM.toDouble())).toFloat() })
+        val v = FloatArray(DIM) { (b[it] + noise * rnd.nextGaussian() / Math.sqrt(DIM.toDouble())).toFloat() }
+        place?.add(v, rnd)
+        return normalize(v)
     }
 
     /** One frame: the cows where the map says, and every look the scan asks for answered. */
@@ -70,6 +77,26 @@ class Field(val herd: Herd = Herd(), val opt: ScanOptions = ScanOptions(), val l
 
     /** The herd's cow each pretend cow is named as, from the tracks in view. */
     fun names(): Map<Int, Int?> = scan.tracker.tracks.associate { (truth[it.id] ?: -1) to it.cowId }
+}
+
+/**
+ * What looks taken in one place have in common, as the real model's do: a large part that is the same in
+ * every look (the grass, the light, "a black-and-white cow"), and a few things that change from look to
+ * look and say nothing about which cow it is (how the box was cut, how the cow stands). Next to these the
+ * part that is the cow itself is small.
+ */
+class Place(dim: Int = Field.DIM, val same: Double = 2.5, val changing: Double = 1.2, ways: Int = 3, seed: Long = 5) {
+    private val r = Random(seed)
+    private val common = normalize(FloatArray(dim) { r.nextGaussian().toFloat() })
+    private val nuisance = Array(ways) { normalize(FloatArray(dim) { r.nextGaussian().toFloat() }) }
+
+    fun add(v: FloatArray, rnd: Random) {
+        for (i in v.indices) v[i] += (same * common[i]).toFloat()
+        for (n in nuisance) {
+            val g = changing * rnd.nextGaussian()
+            for (i in v.indices) v[i] += (g * n[i]).toFloat()
+        }
+    }
 }
 
 class ScanLogicTest {
@@ -127,12 +154,15 @@ class ScanLogicTest {
         assertEquals(1, f.herd.size)
         // A second animal that looks just like cow 1 walks in while cow 1 is still there.
         f.disguise[2] = 1
-        f.steps(14, mapOf(1 to Field.box(0.1), 2 to Field.box(0.6)))
+        f.steps(20, mapOf(1 to Field.box(0.1), 2 to Field.box(0.6)))
         val names = f.names()
         assertNotNull(names[1])
-        assertNotNull(names[2], "the double is learnt as a cow of its own")
-        assertNotEquals(names[1], names[2])
-        assertEquals(2, f.scan.session.count)
+        // It isn't cow 1 (that's over there), and it isn't learnt either: an entry that can't be told
+        // from another is no use. It still counts.
+        assertNull(names[2], "not named as the cow that's standing elsewhere")
+        assertEquals(1, f.herd.size, "and not learnt as a second entry that looks the same")
+        assertEquals(2, f.scan.session.count, "but counted: two cows in view at once")
+        assertEquals("looking", f.scan.shown().first { it.cowId == null }.state)
     }
 
     @Test
@@ -190,22 +220,146 @@ class ScanLogicTest {
     }
 
     @Test
-    fun aTrackThatJumpsToAnotherCowIsRenamed() {
+    fun aCowFollowedWithoutABreakKeepsItsNameAndIsLearntFromItsOtherSide() {
+        val f = Field(opt = ScanOptions(checkGapMs = 300.0))
+        f.scan.start(gate = false)
+        f.steps(8, mapOf(1 to Field.box(0.3)))
+        val id = f.names()[1]
+        assertNotNull(id)
+        val before = f.herd[id]!!.views.size
+        // It turns round: to the recognition model its other side might as well be another animal.
+        f.disguise[1] = 7
+        f.steps(20, mapOf(1 to Field.box(0.3)))
+        assertEquals(id, f.names()[1], "still the same cow: it was never out of sight")
+        assertEquals(1, f.herd.size, "nothing new learnt")
+        assertEquals(1, f.scan.session.count)
+        assertTrue(f.herd[id]!!.views.size > before, "its other side is now part of what's known of it")
+        f.scan.stop(f.now)
+        // Another day it's seen from that side only, and known.
+        val g = Field(f.herd, looks = f.looks, seed = 21)
+        g.disguise[1] = 7
+        g.scan.start(gate = false)
+        g.steps(10, mapOf(1 to Field.box(0.5)))
+        assertEquals(id, g.names()[1])
+        assertEquals(1, g.herd.size)
+    }
+
+    @Test
+    fun aTrackThatSlipsOntoAnotherCowIsRenamed() {
         val f = Field(opt = ScanOptions(checkGapMs = 300.0))
         f.scan.start(gate = false)
         f.steps(10, row(2))
         f.scan.stop(f.now)
         val learnt = f.names()
-        // Next count: cow 1 alone, then the same track starts looking like cow 2 (the tracker slipped).
+        // Next count: cow 1 alone; then cow 2 walks in front of it and the box that was following cow 1
+        // carries on with cow 2 (the tracker slipped).
         val g = Field(f.herd, opt = ScanOptions(checkGapMs = 300.0), looks = f.looks)
         g.scan.start(gate = false)
         g.steps(6, mapOf(1 to Field.box(0.3)))
         assertEquals(learnt[1], g.names()[1])
+        g.steps(4, mapOf(1 to Field.box(0.3), 2 to Field.box(0.36)))
         g.disguise[1] = 2
-        g.steps(20, mapOf(1 to Field.box(0.3)))
+        g.steps(24, mapOf(1 to Field.box(0.3)))
         assertEquals(learnt[2], g.names()[1], "renamed to the cow it now looks like")
         assertEquals(2, g.herd.size, "and nothing new was learnt")
         assertEquals(2, g.scan.session.count, "both were seen")
+        // Had it not been in among another animal, it would have kept its name whatever it looked like
+        // (see the test above): being followed without a break counts for more than looks.
+    }
+
+    // ---------------------------------------------------------------- telling cows apart
+
+    @Test
+    fun aCowLearntTwiceIsStillNamed() {
+        val f = Field()
+        f.scan.start(gate = false)
+        f.steps(10, row(3))
+        f.scan.stop(f.now)
+        assertEquals(3, f.herd.size)
+        val first = f.names()[2]!!
+        // Cow 2 gets a second entry (learnt again on a bad day).
+        val again = f.herd.create(f.now)
+        repeat(3) { f.herd.addView(again, f.lookOf(2), 1.0, f.now, null, 1.0, dup = 2.0) }
+        // It looks like both entries: it's named as one of them (and marked unsure), not learnt a third time.
+        val g = Field(f.herd, looks = f.looks, seed = 11)
+        g.scan.start(gate = false)
+        g.steps(14, mapOf(2 to Field.box(0.4)))
+        assertEquals(4, g.herd.size, "not learnt a third time")
+        assertTrue(g.names()[2] == first || g.names()[2] == again.id)
+        assertTrue(g.scan.shown().single().unsure, "and it says it wasn't sure which")
+        assertEquals(1, g.scan.session.count)
+        // The two entries are offered for merging.
+        assertEquals(setOf(first, again.id), HerdCheck.duplicates(g.herd, g.scan.bars().twin).first().let { setOf(it.a.id, it.b.id) })
+    }
+
+    @Test
+    fun aCowThatLooksLikeTwoKnownCowsIsLearntAsNewNotGuessedAt() {
+        // A wide margin, so that which of the two comes out ahead by a whisker doesn't matter.
+        fun opt() = ScanOptions(margin = 0.15)
+        val f = Field(opt = opt())
+        f.scan.start(gate = false)
+        f.steps(10, row(2))
+        f.scan.stop(f.now)
+        val learnt = f.names()
+        // Cow 3 looks half like cow 1 and half like cow 2: neither stands out.
+        val a = f.lookOf(1, noise = 0.0)
+        val b = f.lookOf(2, noise = 0.0)
+        f.looks[3] = normalize(FloatArray(Field.DIM) { a[it] + b[it] })
+        val g = Field(f.herd, opt = opt(), looks = f.looks, seed = 12)
+        g.scan.start(gate = false)
+        g.steps(6, mapOf(3 to Field.box(0.4)))
+        assertNull(g.names()[3], "no name while two cows look as likely")
+        val s = g.scan.shown().single()
+        assertTrue(s.bestScore > g.scan.bars().match && s.bestScore - s.secondScore < g.scan.bars().margin, "${s.bestScore} ${s.secondScore}")
+        g.steps(30, mapOf(3 to Field.box(0.4)))
+        assertEquals(3, g.herd.size, "learnt as a cow of its own")
+        assertTrue(g.names()[3] != null && g.names()[3] !in learnt.values)
+    }
+
+    @Test
+    fun inARealPlaceCowsAreToldApartThroughATuning() {
+        val place = Place()
+        // A tuning made beforehand from looks of other cows in such a place, each cow's looks together.
+        val before = Field(place = place, seed = 3)
+        val tuning = Tuning.fit((101..116).map { cow -> List(8) { before.lookOf(cow) } })
+        assertNotNull(tuning)
+
+        /** Twenty cows come past five at a time; later they come past again in another order. */
+        fun count(tuned: Boolean): Field {
+            // Without a tuning the bars must be strict: looks of different cows in one place are very alike.
+            fun opt() = if (tuned) ScanOptions(match = 0.5, fresh = 0.4, margin = 0.1) else ScanOptions(match = 0.9, fresh = 0.8, margin = 0.04)
+            val herd = Herd()
+            if (tuned) herd.retune(tuning)
+            val a = Field(herd, opt = opt(), place = place)
+            a.scan.start(gate = false)
+            val name = HashMap<Int, Int?>()
+            for (g in 0 until 4) {
+                a.steps(14, (0 until 5).associate { (1 + g * 5 + it) to Field.box(0.05 + 0.18 * it) })
+                name.putAll(a.names())
+                a.steps(10, emptyMap())
+            }
+            a.scan.stop(a.now)
+            if (tuned) assertEquals(20, name.values.filterNotNull().toSet().size, "each cow learnt under its own name")
+            val b = Field(herd, opt = opt(), looks = a.looks, seed = 31, place = place)
+            b.scan.start(gate = false)
+            val order = (1..20).shuffled(Random(4))
+            var right = 0
+            for (g in 0 until 4) {
+                b.steps(16, (0 until 5).associate { order[g * 5 + it] to Field.box(0.05 + 0.18 * it, feet = 0.8) })
+                right += b.names().count { (cow, id) -> id != null && id == name[cow] }
+                b.steps(10, emptyMap())
+            }
+            b.scan.stop(b.now)
+            println("  ${if (tuned) "through the tuning" else "plain"}: $right of 20 named right the second time, ${b.scan.session.fresh.size} learnt again, herd ${b.herd.size}")
+            if (tuned) assertEquals(20, right, "every cow given the name it was learnt under")
+            return b
+        }
+        val b = count(tuned = true)
+        assertEquals(20, b.herd.size, "through the tuning: every cow known again, none learnt twice")
+        assertEquals(0, b.scan.session.fresh.size)
+        assertEquals(20, b.scan.session.count)
+        val plain = count(tuned = false)
+        assertTrue(plain.herd.size >= 25, "without it many of the same cows are learnt again as new ones (${plain.herd.size} entries for 20 cows)")
     }
 
     // ---------------------------------------------------------------- gate

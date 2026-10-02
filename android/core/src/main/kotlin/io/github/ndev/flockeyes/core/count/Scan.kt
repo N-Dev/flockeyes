@@ -4,7 +4,9 @@ import io.github.ndev.flockeyes.core.detect.CowDetector
 import io.github.ndev.flockeyes.core.detect.Det
 import io.github.ndev.flockeyes.core.herd.Cow
 import io.github.ndev.flockeyes.core.herd.Herd
+import io.github.ndev.flockeyes.core.herd.HerdCheck
 import io.github.ndev.flockeyes.core.image.Frame
+import io.github.ndev.flockeyes.core.image.area
 import io.github.ndev.flockeyes.core.image.iou
 import io.github.ndev.flockeyes.core.reid.Embedder
 import io.github.ndev.flockeyes.core.reid.dot
@@ -17,13 +19,17 @@ import io.github.ndev.flockeyes.core.track.foot
 import kotlin.math.max
 import kotlin.math.min
 
-/** How cows are recognised and learnt. */
+/**
+ * How cows are recognised and learnt.
+ *
+ * A cow is named when it looks at least `match` like a cow in the herd AND that cow is clear of the next
+ * most alike one by `margin`: what counts is that one cow stands out, more than how alike it looks. A cow
+ * that looks less than `fresh` like every cow in the herd is new. In between, the app waits for more looks.
+ * (How alike: as the herd's tuning sees the looks, see Tuning.)
+ */
 class ScanOptions(
-    /** Looks at least this alike are the same cow (the strictness setting). */
     var match: Double = 0.5,
-    /** A cow less like every known cow than this is new. */
     var fresh: Double = 0.4,
-    /** The best name must beat the second best by this much, or the app waits for more looks. */
     var margin: Double = 0.04,
     /** Learn cows it doesn't know (off: they're counted as unrecognised). */
     var learn: Boolean = true,
@@ -33,6 +39,8 @@ class ScanOptions(
     var maxLooks: Int = 8,
     /** The shorter side of a box, in pixels, below which a cow is too small to recognise. */
     var minSide: Int = 48,
+    /** How sure the cow finder must be of a box for a look to be taken (a head or a rump on its own scores low). */
+    var minScore: Double = 0.6,
     /** Time between looks at a cow that isn't named yet, and at one that is (ms). */
     var lookGapMs: Double = 250.0,
     var checkGapMs: Double = 2500.0,
@@ -41,6 +49,12 @@ class ScanOptions(
     /** Looks kept when a cow is first learnt. */
     var firstViews: Int = 4,
 )
+
+/** The bars a look must clear. */
+class Bars(val match: Double, val fresh: Double, val margin: Double) {
+    /** Two cows in the herd at least this alike are probably one cow learnt twice. */
+    val twin: Double get() = match + margin
+}
 
 /** A picture of a tracked cow for the recognition model: see [Scan.look]. */
 class Look(val trackId: Int, val px: IntArray, val aspect: Double, val quality: Double, val t: Double)
@@ -153,10 +167,23 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
     private var frameH = 0
     private var lastT = 0.0
     private val flash = HashMap<Int, Pair<Double, Int>>()
+    private val inView = ArrayDeque<Int>()
+    private val parts = HashSet<Int>()
+    private val close = HashSet<Int>()
+
+    /** Whether two boxes, each grown by `by` of its own size on every side, meet. */
+    private fun touching(a: DoubleArray, b: DoubleArray, by: Double): Boolean {
+        val ax = (a[2] - a[0]) * by
+        val ay = (a[3] - a[1]) * by
+        val bx = (b[2] - b[0]) * by
+        val by2 = (b[3] - b[1]) * by
+        return a[0] - ax < b[2] + bx && b[0] - bx < a[2] + ax && a[1] - ay < b[3] + by2 && b[1] - by2 < a[3] + ay
+    }
 
     fun start(gate: Boolean) = synchronized(herd) {
         session = Session(gate)
         counting = true
+        inView.clear()
         for (tr in tracker.tracks) {
             tr.counted = false
             tr.crossings.clear()
@@ -179,6 +206,9 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         saved
     }
 
+    /** The bars a look must clear. */
+    fun bars(): Bars = Bars(opt.match, opt.fresh, opt.margin)
+
     /** Forgets every track (the camera moved to another screen, or the settings changed). */
     fun reset() = synchronized(herd) {
         tracker.flush()
@@ -197,16 +227,30 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         val u = tracker.update(dets, t)
         val live = u.seen
 
-        // Cows overlapping each other: a picture of one would have some of the other in it.
+        // A small box touching a much bigger one is a piece of that animal (a head, a rump), not a cow to
+        // count or look at.
+        parts.clear()
+        for (a in live) for (b in live) {
+            if (a !== b && area(a.box) < 0.3 * area(b.box) && touching(a.box, b.box, 0.06)) parts.add(a.id)
+        }
+        // Cows overlapping each other: a picture of one would have some of the other in it, and the box
+        // following one may slip onto the other. Cows standing right up against each other: no looks either.
         val overlapped = HashSet<Int>()
+        close.clear()
         for (i in live.indices) for (j in i + 1 until live.size) {
             val a = live[i]
             val b = live[j]
+            if (a.id in parts || b.id in parts) continue
             if (iou(a.box, b.box) > 0.12 || CowDetector.inside(a.box, b.box) > 0.25 || CowDetector.inside(b.box, a.box) > 0.25) {
                 overlapped.add(a.id)
                 overlapped.add(b.id)
                 a.clean = false
                 b.clean = false
+                a.mixed = true
+                b.mixed = true
+            } else if (touching(a.box, b.box, 0.04)) {
+                close.add(a.id)
+                close.add(b.id)
             }
         }
 
@@ -221,8 +265,14 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
             if (tr.cowId == null && tr.looks.isNotEmpty() && resolve(tr, now, last = false)) named.add(tr)
         }
         if (counting && !session.gate) {
-            val inView = live.count { it.hits >= 3 }
-            if (inView > session.peak) session.peak = inView
+            // The most in view at once: the middle of the last five frames, so a box that flickers in for
+            // a frame or two (a cow boxed twice, a bush) doesn't count.
+            inView.addLast(live.count { it.hits >= 3 && it.topScore >= 0.5 && it.id !in parts })
+            if (inView.size > 5) inView.removeFirst()
+            if (inView.size == 5) {
+                val mid = inView.sorted()[2]
+                if (mid > session.peak) session.peak = mid
+            }
             for (tr in live) register(tr, now, saved)
         }
 
@@ -237,6 +287,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
             val hPx = (tr.box[3] - tr.box[1]) * frame.height
             val quality = min(1.0, min(wPx, hPx) / 160.0) * tr.score
             looks.add(Look(tr.id, px, hPx / max(1.0, wPx), quality, t))
+            tr.lookShape = hPx / max(1.0, wPx)
             tr.lastSampleT = t
             tr.waiting++
         }
@@ -253,15 +304,24 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         if (tr.unknown || tr.hits < 2) return false
         if (tr.waiting >= opt.maxWaiting) return false
         val named = tr.cowId != null
-        if (!named && tr.looks.size + tr.waiting >= opt.maxLooks) return false
-        if (t - tr.lastSampleT < (if (named) opt.checkGapMs else opt.lookGapMs)) return false
+        // An unnamed cow has had its looks; one that looked like a cow elsewhere in view is looked at
+        // again now and then (as a named one is), in case that has changed.
+        if (!named && !tr.taken && tr.looks.size + tr.waiting >= opt.maxLooks) return false
         val b = tr.box
+        val shape = (b[3] - b[1]) * frameH / max(1.0, (b[2] - b[0]) * frameW)
+        // A named cow is looked at again now and then, and sooner if its box has changed shape (it has turned).
+        val turned = named && tr.lookShape > 0 && kotlin.math.abs(shape - tr.lookShape) / tr.lookShape > 0.18
+        val gap = if (!named) (if (tr.taken && tr.looks.size >= opt.minLooks) opt.checkGapMs else opt.lookGapMs) else if (turned) minOf(opt.checkGapMs, 700.0) else opt.checkGapMs
+        if (t - tr.lastSampleT < gap) return false
         val e = 0.008
         tr.skipped = when {
             tr.cut -> "cut"
+            tr.score < opt.minScore -> "unsure"
             b[0] <= e || b[1] <= e || b[2] >= 1 - e || b[3] >= 1 - e -> "edge"
             min((b[2] - b[0]) * frameW, (b[3] - b[1]) * frameH) < opt.minSide -> "small"
+            tr.id in parts -> "part"
             tr.id in overlapped -> "overlap"
+            tr.id in close -> "close"
             else -> ""
         }
         if (tr.skipped.isNotEmpty()) return false
@@ -303,18 +363,76 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         LookOut(if (did) tr else null, saved)
     }
 
+    /** A look as the herd's tuning sees it (kept, and worked out again when the tuning changes). */
+    private fun seen(lk: Looked): FloatArray {
+        val have = lk.tuned
+        if (have != null && lk.tuneVersion == herd.tuneVersion) return have
+        return herd.see(lk.emb).also {
+            lk.tuned = it
+            lk.tuneVersion = herd.tuneVersion
+        }
+    }
+
     /** Every cow in the herd by how like the track's looks it is, most alike first. */
     fun rank(looks: List<Looked>): List<Candidate> {
         val out = ArrayList<Candidate>(herd.size)
         if (looks.isEmpty()) return out
+        val seen = looks.map { seen(it) }
         for (cow in herd.cows) {
             if (cow.views.isEmpty()) continue
             var sum = 0.0
-            for (lk in looks) sum += cow.similarity(lk.emb)
-            out.add(Candidate(cow.id, sum / looks.size))
+            for (e in seen) sum += cow.similarity(e)
+            out.add(Candidate(cow.id, sum / seen.size))
         }
         out.sortByDescending { it.score }
         return out
+    }
+
+    /**
+     * The cow a track's looks are most like, and how far it stands out from the next most alike.
+     * `taken`: what it looks most like is a cow that is in view on another track.
+     */
+    private class Pick(val best: Candidate?, val cow: Cow?, val gap: Double, val twin: Boolean, val taken: Boolean)
+
+    private fun pick(tr: Track, bar: Bars): Pick {
+        val all = rank(tr.looks)
+        tr.best = all.getOrNull(0)
+        tr.second = all.getOrNull(1)
+        // A cow can't be in two places: cows named on other tracks in view now are out, and so is any
+        // entry that looks like the same animal as one of those (a cow learnt twice).
+        val held = ArrayList<Cow>()
+        for (o in tracker.tracks) if (o !== tr && lastT - o.lastT < 800) o.cowId?.let { id -> herd[id]?.let { held.add(it) } }
+        var b: Candidate? = null
+        var top: Cow? = null
+        var rival: Candidate? = null
+        var twin = false
+        var taken = false
+        for (c in all) {
+            val cow = herd[c.cowId] ?: continue
+            if (held.any { it === cow }) {
+                if (b == null && c.score >= bar.match) taken = true
+                continue
+            }
+            if (b == null) {
+                if (c.score >= bar.match && held.any { HerdCheck.alike(it, cow) >= bar.twin }) {
+                    taken = true
+                    continue
+                }
+                b = c
+                top = cow
+                if (c.score < bar.match) break
+            } else {
+                // The runner-up that counts is the next cow that isn't the same animal learnt twice.
+                if (c.score >= bar.match && HerdCheck.alike(top!!, cow) >= bar.twin) {
+                    twin = true
+                    continue
+                }
+                rival = c
+                break
+            }
+        }
+        val gap = if (b == null) 0.0 else b.score - (rival?.score ?: (bar.match - bar.margin))
+        return Pick(b, top, gap, twin, taken)
     }
 
     /**
@@ -325,26 +443,26 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
     private fun resolve(tr: Track, now: Long, last: Boolean): Boolean {
         val n = tr.looks.size
         if (n == 0) return false
-        val all = rank(tr.looks)
-        tr.best = all.getOrNull(0)
-        tr.second = all.getOrNull(1)
-        // A cow can't be in two places: cows named on other tracks in view now are out.
-        val held = HashSet<Int>()
-        for (o in tracker.tracks) if (o !== tr && lastT - o.lastT < 800) o.cowId?.let { held.add(it) }
-        val free = all.filter { it.cowId !in held }
-        val b = free.getOrNull(0)
-        val s2 = free.getOrNull(1)
-        if (b != null && b.score >= opt.match) {
-            val clear = s2 == null || b.score - s2.score >= opt.margin
-            val sure = b.score >= opt.match + 0.15
-            if ((clear && (n >= opt.minLooks || sure)) || n >= opt.maxLooks || last) {
-                assign(tr, herd[b.cowId]!!, b.score, !clear, now)
+        val bar = bars()
+        val p = pick(tr, bar)
+        val b = p.best
+        if (b != null && p.cow != null && b.score >= bar.match) {
+            val clear = p.gap >= bar.margin
+            val sure = p.gap >= 2 * bar.margin
+            if (clear && (n >= opt.minLooks || sure || last)) {
+                assign(tr, p.cow, b.score, p.twin, now, bar)
                 return true
             }
-            return false
+            // Not clear of the runner-up: more looks may settle it. If they don't, it's learnt as a new
+            // cow below (a cow learnt twice can be merged; two cows under one name is worse).
         }
-        val top = b?.score ?: -1.0
-        val enough = (top < opt.fresh && n >= opt.newLooks) || n >= opt.maxLooks || (last && n >= 2)
+        // What it looks most like is a cow standing somewhere else in view: so it isn't that cow, but
+        // nor can the app tell it from that cow. It isn't learnt (two entries that can't be told apart
+        // are no use); it still counts as a cow in view.
+        tr.taken = p.taken
+        if (p.taken) return false
+        val best = b?.score ?: -1.0
+        val enough = (best < bar.fresh && n >= opt.newLooks) || n >= opt.maxLooks || (last && n >= 2)
         if (!enough) return false
         if (!counting) return false
         // At a gate only cows that go through are learnt, not ones standing about behind it.
@@ -360,7 +478,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         return true
     }
 
-    private fun assign(tr: Track, cow: Cow, score: Double, unsure: Boolean, now: Long) {
+    private fun assign(tr: Track, cow: Cow, score: Double, unsure: Boolean, now: Long, bar: Bars) {
         tr.cowId = cow.id
         tr.created = false
         tr.unknown = false
@@ -369,8 +487,9 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         tr.agree = score
         tr.agreeN = 1
         // Looks that match on their own add to what's known of the cow (a slightly different angle or light).
-        if (counting) for (lk in tr.looks) if (cow.similarity(lk.emb) >= opt.match) herd.addView(cow, lk.emb, lk.quality, now, lk.px, lk.aspect)
+        if (counting) for (lk in tr.looks) if (cow.similarity(seen(lk)) >= bar.match) herd.addView(cow, lk.emb, lk.quality, now, lk.px, lk.aspect)
         tr.looks.clear()
+        tr.mixed = false
     }
 
     private fun create(tr: Track, now: Long) {
@@ -401,24 +520,43 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         tr.agree = 1.0
         tr.agreeN = 1
         tr.looks.clear()
+        tr.mixed = false
         session.fresh.add(cow.id)
     }
 
-    /** A later look at a named cow: keeps what's known of it up to date, and notices a track that has jumped to another cow. */
+    /**
+     * A later look at a named cow. A cow followed without a break is the same animal however it looks
+     * now, so its new look is added to what's known of it: that is how the app comes to know a cow from
+     * both sides and with its head up or down. Only a track that has been in among other animals (or was
+     * lost for a moment) can have slipped onto another cow; such a track is renamed if its looks come to
+     * be clearly another cow's. Otherwise it keeps its name.
+     */
     private fun check(tr: Track, cow: Cow, look: Look, emb: FloatArray, now: Long) {
-        val s = cow.similarity(emb)
+        val bar = bars()
+        val s = cow.similarity(herd.see(emb))
         tr.agreeN++
         tr.agree = tr.agree * 0.6 + s * 0.4
-        val trusted = tr.created && tr.clean
-        if (counting && (trusted || s >= opt.match)) herd.addView(cow, emb, look.quality, now, look.px, look.aspect)
-        if (!trusted && tr.agreeN >= 3 && tr.agree < opt.fresh) {
-            // It doesn't look like that cow any more: start again from this look.
-            tr.cowId = null
-            tr.created = false
-            tr.unsure = false
-            tr.counted = false
+        if (s >= bar.match) {
+            tr.mixed = false
             tr.looks.clear()
-            tr.looks.add(Looked(emb, look.px, look.aspect, look.quality, look.t))
+        }
+        if (!tr.mixed) {
+            if (counting) herd.addView(cow, emb, look.quality, now, look.px, look.aspect)
+            return
+        }
+        if (s >= bar.fresh) {
+            tr.looks.clear()
+            return
+        }
+        // Mixed up with other animals and no longer looking like its name: is it clearly another cow?
+        tr.looks.add(Looked(emb, look.px, look.aspect, look.quality, look.t))
+        while (tr.looks.size > opt.maxLooks) tr.looks.removeAt(0)
+        if (tr.looks.size < opt.minLooks) return
+        val p = pick(tr, bar)
+        val b = p.best ?: return
+        if (p.cow != null && p.cow !== cow && b.score >= bar.match && p.gap >= bar.margin) {
+            tr.counted = false
+            assign(tr, p.cow, b.score, p.twin, now, bar)
         }
     }
 

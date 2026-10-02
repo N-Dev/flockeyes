@@ -1,0 +1,105 @@
+# The Flock Eyes Android app (android/): builds it, runs the unit tests (with the real AI models), runs
+# the on-device tests on an emulator, and publishes the APK as a GitHub release.
+#   Download: https://github.com/N-Dev/flockeyes/releases/latest/download/FlockEyes.apk
+#   Logs, test results and emulator screenshots of the last run: the android-ci branch.
+name: Android app
+
+on:
+  push:
+    # main builds, tests and releases; next only builds and tests (work in progress).
+    branches: [main, next]
+    paths:
+      - 'android/**'
+      - 'tests/assets/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A newer push to the same branch replaces a run in progress; main and next don't cancel each other.
+concurrency:
+  group: android-app-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # A private signing key, if one is set up in the repository's secrets (see android/README.md);
+      # without one, builds are signed with the sideload key in the repository.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FLOCKEYES_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/flockeyes-private.jks"
+            echo "FLOCKEYES_KEYSTORE_FILE=$RUNNER_TEMP/flockeyes-private.jks" >> "$GITHUB_ENV"
+            echo "Signing with the private key from the repository's secrets."
+          else
+            echo "No private key in the secrets: signing with the sideload key in the repository."
+          fi
+
+      - name: Build the app and run the unit tests
+        working-directory: android
+        env:
+          FLOCKEYES_KEYSTORE_PASSWORD: ${{ secrets.FLOCKEYES_KEYSTORE_PASSWORD }}
+          FLOCKEYES_KEY_ALIAS: ${{ secrets.FLOCKEYES_KEY_ALIAS }}
+          FLOCKEYES_KEY_PASSWORD: ${{ secrets.FLOCKEYES_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p ../ci-out
+          ./gradlew --no-daemon --stacktrace :core:test :app:assembleRelease :app:assembleDebug :app:assembleDebugAndroidTest 2>&1 | tee ../ci-out/build.log
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: On-device tests (emulator)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          cores: 4
+          ram-size: 4096M
+          disk-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated
+          script: bash android/ci/emulator-tests.sh
+
+      - name: Release
+        if: success() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk FlockEyes.apk
+          gh release create "v${VERSION_NAME}" FlockEyes.apk --target "${GITHUB_SHA}" \
+            --title "Flock Eyes ${VERSION_NAME}" --notes-file android/ci/release-notes.md --latest
+          echo "Released v${VERSION_NAME}: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/FlockEyes.apk" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish logs and screenshots (android-ci branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: bash android/ci/publish-logs.sh

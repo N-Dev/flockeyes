@@ -2,8 +2,10 @@
 # photo archive; the workspace the app is written in can't).
 #   1. tools/prepare_reid.py: MegaDescriptor-T-224 from Hugging Face -> ONNX, full and 8-bit.
 #   2. tools/eval_reid.py: measures both on side-on photos of 136 Holstein cows (CC0), picks the one that
-#      ships, sets the app's thresholds, and saves a few of the photos as test pictures.
-#   3. Commits models/cow-reid.onnx, models/cow-reid.json, tests/assets/cows and docs/recognition.md.
+#      ships, makes the tuning that goes with it (tools/make_tuning.py), measures what the app's rule
+#      achieves with them, and saves a few of the photos as test pictures.
+#   3. Commits models/cow-reid.onnx, models/cow-tuning.bin, models/cow-reid.json, tests/assets/cows and
+#      docs/recognition.md.
 # The log and the full results go to the models-ci branch; both model versions to the "models" release.
 name: Models
 
@@ -13,6 +15,8 @@ on:
     paths:
       - 'tools/prepare_reid.py'
       - 'tools/eval_reid.py'
+      - 'tools/make_tuning.py'
+      - 'tools/data/**'
       - 'tools/cowdetect.py'
       - '.github/workflows/models.yml'
   workflow_dispatch:
@@ -76,7 +80,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add models/cow-reid.onnx models/cow-reid.json tests/assets/cows docs/recognition.md
+          git add models/cow-reid.onnx models/cow-reid.json models/cow-tuning.bin tests/assets/cows docs/recognition.md
           if git diff --cached --quiet; then
             echo "Nothing changed."
           else
@@ -91,7 +95,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete models --yes --cleanup-tag 2>/dev/null || true
-          gh release create models build/reid/cow-reid-fp32.onnx build/reid/cow-reid-int8.onnx build/reid/eval.json build/reid/export.json \
+          gh release create models build/reid/cow-reid-fp32.onnx build/reid/cow-reid-int8.onnx build/reid/eval.json build/reid/export.json build/reid/barn-looks.npz \
             --prerelease --latest=false --title "Recognition model files" \
             --notes "MegaDescriptor-T-224 (CC BY-NC 4.0, https://huggingface.co/BVRA/MegaDescriptor-T-224) exported to ONNX by the Models workflow: the full version and the 8-bit one. Not an app release."
 
