@@ -1,0 +1,83 @@
+# Packs the Holstein photos and candidate recognition models (with their inner outputs) as files of the
+# "research" release, so that ways of telling cows apart can be tried somewhere that can't reach
+# Hugging Face or the photo archive. See tools/research.py. Not part of building the app.
+name: Research
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/research.py'
+      - '.github/workflows/research.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the tools
+        run: |
+          set -e -o pipefail
+          mkdir -p ci-out
+          python -m pip install --upgrade pip > /dev/null
+          pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
+          pip install timm==1.0.12 huggingface_hub==0.26.5 safetensors==0.4.5 onnx==1.17.0 onnxruntime==1.20.1 numpy==1.26.4 \
+            pillow opencv-python-headless==4.10.0.84 2>&1 | tail -1
+
+      - uses: actions/cache@v4
+        with:
+          path: build/data
+          key: holstein-photos-O1ZBSA-1
+
+      - name: Pack the photos and export the models
+        run: |
+          set -o pipefail
+          python tools/research.py build/research build/data 2>&1 | tee ci-out/research.log
+
+      - name: Upload as the "research" release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la build/research || true
+          gh release delete research --yes --cleanup-tag 2>/dev/null || true
+          gh release create research build/research/*.zip build/research/*.onnx build/research/research.json \
+            --prerelease --latest=false --title "Research files" \
+            --notes "For trying recognition methods (see tools/research.py). Not an app release. Photos: Holstein Cattle Recognition, CC0, https://doi.org/10.34894/O1ZBSA. Models exported to ONNX: DINOv2 (Apache 2.0), XFeat (Apache 2.0), MegaDescriptor (CC BY-NC 4.0, non-commercial)."
+
+      - name: Publish the log (research-ci branch)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          cp build/research/research.json ci-out/ 2>/dev/null || true
+          {
+            echo "# Research run ${GITHUB_RUN_NUMBER}"
+            echo
+            echo "Commit ${GITHUB_SHA}, $(date -u), job status: ${JOB_STATUS}"
+          } > ci-out/README.md
+          cd ci-out
+          git init -q -b research-ci
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Research run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:research-ci
