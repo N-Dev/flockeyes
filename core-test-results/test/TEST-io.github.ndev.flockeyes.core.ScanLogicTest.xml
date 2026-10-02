@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.ndev.flockeyes.core.ScanLogicTest" tests="34" skipped="0" failures="0" errors="0" timestamp="2026-10-02T11:49:43.755Z" hostname="runnervm8df0l" time="1.433">
+  <properties/>
+  <testcase name="zoomingDoesNotMoveTheCows" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.002"/>
+  <testcase name="aCowFollowedWithoutABreakKeepsItsNameAndIsLearntFromItsOtherSide" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.045"/>
+  <testcase name="aBoxThatFlickersInForAMomentIsNotACow" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.031"/>
+  <testcase name="mergingTwoEntriesOfOneCow" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.002"/>
+  <testcase name="whenThePictureGivesNothingToGoByTheCowsThemselvesDo" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.005"/>
+  <testcase name="aCowCountsOnceHoweverOftenItComesBack" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.029"/>
+  <testcase name="aNamedBoxThatSlidesOntoTheNextCowDoesNotHideIt" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.056"/>
+  <testcase name="aTrackThatSlipsOntoAnotherCowIsRenamed" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.044"/>
+  <testcase name="nothingIsLearntOrCountedUntilACountStarts" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.022"/>
+  <testcase name="oneCowCannotBeInTwoPlaces" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.031"/>
+  <testcase name="inARealPlaceCowsAreToldApartThroughATuning" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.445"/>
+  <testcase name="swungRoundTooFastToFollowWhatWasCountedStaysCounted" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="aCowPassingBeyondTheEndOfTheLineIsNotCounted" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="aCowLearntTwiceIsStillNamed" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.038"/>
+  <testcase name="gateWithLearningOffCountsStrangersAsUnrecognised" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="aCowFoundAStepFromWhereItStoodTakesItsOldPlace" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.037"/>
+  <testcase name="cowsLearntTwiceAreFound" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="withLearningOffStrangersAreCountedButNotLearnt" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.017"/>
+  <testcase name="aCowWhoseBoxIsLostAndFoundIsCountedOnce" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.159"/>
+  <testcase name="learnsCowsAndKnowsThemAgain" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.026"/>
+  <testcase name="gateGeometry" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.0"/>
+  <testcase name="cowsTooSmallToTellApartStillCountByHowManyAreInView" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.007"/>
+  <testcase name="stoppingAGateCountSavesCowsStillInView" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="aKnownCowThatHasMovedIsNotCountedAsAnotherWhileItIsBeingLookedAt" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.068"/>
+  <testcase name="cowsInAHeapAreCountedByHowManyBoxesThereWereAtOnce" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.139"/>
+  <testcase name="aCowThatLooksLikeTwoKnownCowsIsLearntAsNewNotGuessedAt" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.044"/>
+  <testcase name="gateDoesNotLearnCowsThatOnlyStandNearby" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="aLookAlikeTakenForACowElsewhereStillCountsOnceBothAreSeen" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.144"/>
+  <testcase name="aFullSetOfLooksDropsTheOneThatAddsLeast" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.0"/>
+  <testcase name="gateCountsEachWayAndKnowsWhoWentThrough" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.002"/>
+  <testcase name="aNamedCowThatHasMovedIsStillOneCow" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="cowsStandingTooCloseToTellApartAreCountedByWhereTheyStandAsThePhonePans" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.005"/>
+  <testcase name="aCowStandingOnTheLineIsNotCountedBackAndForth" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.001"/>
+  <testcase name="cowsOverlappingEachOtherAreNotLookedAt" classname="io.github.ndev.flockeyes.core.ScanLogicTest" time="0.021"/>
+  <system-out><![CDATA[  through the tuning: 20 of 20 named right the second time, 0 learnt again, herd 20
+  plain: 4 of 20 named right the second time, 11 learnt again, herd 31
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

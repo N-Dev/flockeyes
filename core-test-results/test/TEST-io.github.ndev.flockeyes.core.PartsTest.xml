@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.ndev.flockeyes.core.PartsTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-02T11:49:43.230Z" hostname="runnervm8df0l" time="0.522">
+  <properties/>
+  <testcase name="halvesOfTheFrame" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.0"/>
+  <testcase name="aTuningScalesDownWhatLooksOfOneAnimalVaryAlongAndLeavesTheRestAlone" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.062"/>
+  <testcase name="aPieceOfACowThatIsWholeInTheOtherHalfIsDropped" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.0"/>
+  <testcase name="twoCowsEitherSideOfTheJoinStayTwo" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.0"/>
+  <testcase name="aTuningTellsCowsApartWhereThePlainDescriptionsCant" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.084"/>
+  <testcase name="aTuningNeedsEnoughLooksOfTheSameAnimals" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.004"/>
+  <testcase name="theSlideOfThePictureIsWorkedOutFromThePictures" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.361"/>
+  <testcase name="boxesAreFollowedFromFrameToFrame" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.0"/>
+  <testcase name="recognitionSettingsAreRead" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.001"/>
+  <testcase name="exportsOpenInASpreadsheet" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.006"/>
+  <testcase name="aCowAcrossTheJoinIsPutBackTogether" classname="io.github.ndev.flockeyes.core.PartsTest" time="0.001"/>
+  <system-out><![CDATA[  nearest look is the same cow: plain 55 of 144, tuned 144; tuned: two looks of one cow 0.75 alike on average, of different cows 0.06
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
