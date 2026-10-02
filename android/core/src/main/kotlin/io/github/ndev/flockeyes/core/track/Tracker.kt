@@ -18,6 +18,34 @@ class Looked(val emb: FloatArray, val px: IntArray?, val aspect: Double, val qua
     var tuneVersion = -1
 }
 
+/**
+ * Where a cow stands in the field, however the phone is turned (see Scan): its middle and size in picture
+ * widths and heights (at no zoom), measured from where the phone pointed when the count began. `lap`:
+ * places from before the phone was swung too fast to follow can't be told by where they are any more.
+ */
+class Place(val id: Int, var x: Double, var y: Double, var w: Double, var h: Double, var lap: Int) {
+    /** The cow last named there, if any, and when it was first named there. */
+    var cowId: Int? = null
+    var since = 0.0
+    var lastT = 0.0
+
+    /** A cow the one standing here was taken for and turned out not to be (they look alike). */
+    var notCow: Int? = null
+
+    /** Frames in which a cow was seen there, and for how long in all (ms). */
+    var hits = 0
+    var seenMs = 0.0
+
+    /** How long it has been in the picture with no cow on it (ms): the cow that stood there has moved. */
+    var emptyMs = 0.0
+
+    /** When a cow was first seen there, and whether the cow on it now may yet be named by its looks. */
+    var firstT = 0.0
+    var naming = false
+
+    fun box() = doubleArrayOf(x - w / 2, y - h / 2, x + w / 2, y + h / 2)
+}
+
 /** A possible name for a tracked cow: a cow in the herd and how alike they look (0 to 1). */
 class Candidate(val cowId: Int, val score: Double)
 
@@ -83,6 +111,13 @@ class Track internal constructor(val id: Int, t: Double, box: DoubleArray, score
      */
     var mixed = false
 
+    /** Its place in the field (a field count: see Scan.places); and a place that turned out to be another cow's. */
+    var place: Place? = null
+    var notPlace: Place? = null
+
+    /** A look has just settled who this is: the place it stands on next is that cow's. */
+    var namePlace = false
+
     /** Not named because what it looks most like is a cow in view on another track (see Scan.resolve). */
     var taken = false
 
@@ -135,6 +170,14 @@ class Tracker(var aspect: Double = 9.0 / 16, private val maxAge: Double = 1500.0
     class Update(val seen: List<Track>, val lost: List<Track>)
 
     fun update(dets: List<Det>, t: Double): Update {
+        // Tracks not seen for too long are over before this frame's boxes are shared out: after a pause
+        // (the camera stopped, the app was put away) a cow standing where one stood before is followed
+        // afresh, not taken for the same animal.
+        val lost = ArrayList<Track>()
+        val current = ArrayList<Track>(tracks.size)
+        for (tr in tracks) if (t - tr.lastT > maxAge) lost.add(tr) else current.add(tr)
+        tracks.clear()
+        tracks.addAll(current)
         val pairs = ArrayList<Triple<Double, Int, Int>>()
         val preds = tracks.map { predict(it, t) }
         for ((i, tr) in tracks.withIndex()) {
@@ -168,7 +211,6 @@ class Tracker(var aspect: Double = 9.0 / 16, private val maxAge: Double = 1500.0
             observe(tracks[i], dets[j], t)
             seen.add(tracks[i])
         }
-        val existing = tracks.size
         for ((j, d) in dets.withIndex()) {
             if (j in usedD) continue
             val tr = Track(nextId++, t, d.box, d.score)
@@ -176,17 +218,6 @@ class Tracker(var aspect: Double = 9.0 / 16, private val maxAge: Double = 1500.0
             tracks.add(tr)
             seen.add(tr)
         }
-        val lost = ArrayList<Track>()
-        val keep = ArrayList<Track>()
-        for ((i, tr) in tracks.withIndex()) {
-            if (i >= existing || i in usedT || tr.lastT == t) {
-                keep.add(tr)
-                continue
-            }
-            if (t - tr.lastT > maxAge) lost.add(tr) else keep.add(tr)
-        }
-        tracks.clear()
-        tracks.addAll(keep)
         return Update(seen, lost)
     }
 

@@ -13,6 +13,7 @@ import io.github.ndev.flockeyes.core.reid.dot
 import io.github.ndev.flockeyes.core.track.Candidate
 import io.github.ndev.flockeyes.core.track.Crossed
 import io.github.ndev.flockeyes.core.track.Looked
+import io.github.ndev.flockeyes.core.track.Place
 import io.github.ndev.flockeyes.core.track.Track
 import io.github.ndev.flockeyes.core.track.Tracker
 import io.github.ndev.flockeyes.core.track.foot
@@ -56,6 +57,27 @@ class Bars(val match: Double, val fresh: Double, val margin: Double) {
     val twin: Double get() = match + margin
 }
 
+/** How much a box must overlap a place in the field (0 to 1) to be the cow that stands there. */
+private const val PLACE_FIT = 0.25
+
+/** How much of a box cut off by the side of the picture must lie in a place to be the cow that stands there. */
+private const val PART_FIT = 0.6
+
+/** How near the side of the picture (of its width) a box must come to count as cut off by it. */
+private const val SIDE = 0.01
+
+/** How long a cow must have been seen at a place (ms) for the place to count without a name. */
+private const val PLACE_SURE = 600.0
+
+/** How long a cow that is being looked at has to be named (ms) before its place counts without a name. */
+private const val PLACE_NAMING = 3000.0
+
+/** How long a place must have been in the picture with no cow on it (ms) for a cow turning up close by to be the one that stood there. */
+private const val PLACE_EMPTY = 1500.0
+
+/** How long the picture takes to settle after the zoom is changed (ms). */
+private const val ZOOM_SETTLE = 700.0
+
 /** A picture of a tracked cow for the recognition model: see [Scan.look]. */
 class Look(val trackId: Int, val px: IntArray, val aspect: Double, val quality: Double, val t: Double)
 
@@ -79,14 +101,17 @@ class Session(val gate: Boolean) {
     /** Field: the most cows in view at once. */
     var peak = 0
 
+    /** Field: cows told apart by where they stand (each place counts once, and a named cow once however many places it has stood). */
+    var placed = 0
+
     /** Gate: crossings so far, including cows still in view: [total, direction 1, direction 2]. */
     val tally = IntArray(3)
 
     /** Everything counted and finished with, to be saved. */
     val sightings = ArrayList<Sighting>()
 
-    /** Field: cows told apart. It can't be fewer than were in view at once. */
-    val count: Int get() = if (gate) tally[0] else max(seen.size + unknown, peak)
+    /** Field: cows told apart, by their looks or by where they stand. It can't be fewer than were in view at once. */
+    val count: Int get() = if (gate) tally[0] else max(max(seen.size + unknown, peak), placed)
 }
 
 /** A tracked cow as the screen shows it. */
@@ -115,6 +140,9 @@ class Shown(
     val vx: Double,
     val vy: Double,
 )
+
+/** A place a cow was counted at, as the screen shows it in debug mode: see [Scan.placesInPicture]. */
+class PlaceShown(val id: Int, val box: DoubleArray, val label: String, val counts: Boolean)
 
 /** What one frame led to. */
 class FrameOut(
@@ -168,7 +196,51 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
     private var lastT = 0.0
     private val flash = HashMap<Int, Pair<Double, Int>>()
     private val inView = ArrayDeque<Int>()
+
+    // ------------------------------------------------------------ where the cows stand (field count)
+    /**
+     * Each cow's place in the field as the phone pans. A field count goes by these: a cow isn't counted
+     * again when the phone comes back to it or its box is lost and found, and cows standing too close
+     * together to be told apart by their looks are still counted one by one.
+     */
+    val places = ArrayList<Place>()
+    private val panner = PanEstimator()
+
+    /** How the picture slid since the last frame; tests give their own. */
+    var slide: ((Frame) -> Slide)? = null
+
+    /** Where the phone points now, from where it pointed when the count began (picture widths and heights at no zoom). */
+    var panX = 0.0
+        private set
+    var panY = 0.0
+        private set
+    private var lap = 0
+    private var nextPlace = 1
+
+    /** Times the phone was swung round too fast to follow during this count. */
+    var swings = 0
+        private set
+
+    /** The camera's zoom (1 = none): a cow's place doesn't change when the picture is zoomed. */
+    var zoom = 1.0
+        set(value) {
+            val v = value.coerceAtLeast(0.1)
+            if (v != field) {
+                field = v
+                // The picture jumps: don't take that for the phone turning.
+                panner.reset()
+                zoomed = true
+            }
+        }
+    private var zoomed = false
+    private var steadyAt = 0.0
+
+    /** When the last frame was, and the last in which places were looked over. */
+    private var placedT = -1.0
+    private var emptyT = -1.0
     private val parts = HashSet<Int>()
+    private val several = HashSet<Int>()
+    private val overlapped = HashSet<Int>()
     private val close = HashSet<Int>()
 
     /** Whether two boxes, each grown by `by` of its own size on every side, meet. */
@@ -184,7 +256,22 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         session = Session(gate)
         counting = true
         inView.clear()
+        places.clear()
+        panner.reset()
+        panX = 0.0
+        panY = 0.0
+        lap = 0
+        swings = 0
+        steadyAt = 0.0
+        placedT = -1.0
+        emptyT = -1.0
         for (tr in tracker.tracks) {
+            // A cow learnt before this count began isn't new in it.
+            tr.created = false
+            tr.place = null
+            tr.notPlace = null
+            // A cow already named is at its place from the first frame.
+            tr.namePlace = tr.cowId != null
             tr.counted = false
             tr.crossings.clear()
             tr.side = 0
@@ -213,6 +300,9 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
     fun reset() = synchronized(herd) {
         tracker.flush()
         flash.clear()
+        // Places from before can't be found by where they are in a picture that's a different shape.
+        panner.reset()
+        lap++
     }
 
     // ---------------------------------------------------------------- frames
@@ -233,14 +323,31 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         for (a in live) for (b in live) {
             if (a !== b && area(a.box) < 0.3 * area(b.box) && touching(a.box, b.box, 0.06)) parts.add(a.id)
         }
+        // A box round two or more others that between them fill most of it is several cows boxed as one:
+        // they are counted by their own boxes, and a picture of it would be of none of them.
+        several.clear()
+        for (b in live) {
+            if (b.id in parts) continue
+            var n = 0
+            var filled = 0.0
+            for (a in live) {
+                if (a === b || a.id in parts || area(a.box) >= area(b.box)) continue
+                val inside = CowDetector.inside(a.box, b.box)
+                if (inside > 0.7) {
+                    n++
+                    filled += inside * area(a.box)
+                }
+            }
+            if (n >= 2 && filled > 0.55 * area(b.box)) several.add(b.id)
+        }
         // Cows overlapping each other: a picture of one would have some of the other in it, and the box
         // following one may slip onto the other. Cows standing right up against each other: no looks either.
-        val overlapped = HashSet<Int>()
+        overlapped.clear()
         close.clear()
         for (i in live.indices) for (j in i + 1 until live.size) {
             val a = live[i]
             val b = live[j]
-            if (a.id in parts || b.id in parts) continue
+            if (a.id in parts || b.id in parts || a.id in several || b.id in several) continue
             if (iou(a.box, b.box) > 0.12 || CowDetector.inside(a.box, b.box) > 0.25 || CowDetector.inside(b.box, a.box) > 0.25) {
                 overlapped.add(a.id)
                 overlapped.add(b.id)
@@ -267,18 +374,19 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         if (counting && !session.gate) {
             // The most in view at once: the middle of the last five frames, so a box that flickers in for
             // a frame or two (a cow boxed twice, a bush) doesn't count.
-            inView.addLast(live.count { it.hits >= 3 && it.topScore >= 0.5 && it.id !in parts })
+            inView.addLast(live.count { it.hits >= 3 && it.topScore >= 0.5 && it.id !in parts && it.id !in several })
             if (inView.size > 5) inView.removeFirst()
             if (inView.size == 5) {
                 val mid = inView.sorted()[2]
                 if (mid > session.peak) session.peak = mid
             }
             for (tr in live) register(tr, now, saved)
+            place(live, frame, t)
         }
 
         // Which cows get a look this frame: unnamed ones first (those with fewest looks), then named ones
         // not checked for longest.
-        val want = live.filter { wantsLook(it, t, overlapped) }
+        val want = live.filter { wantsLook(it, t) }
             .sortedWith(compareBy<Track>({ if (it.cowId == null) 0 else 1 }, { if (it.cowId == null) it.looks.size + it.waiting else 0 }, { it.lastSampleT }))
         val looks = ArrayList<Look>()
         for (tr in want.take(budget)) {
@@ -299,7 +407,24 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         FrameOut(live, looks, crossed, saved, named)
     }
 
-    private fun wantsLook(tr: Track, t: Double, overlapped: Set<Int>): Boolean {
+    /** Why a picture of this cow, as it is in this frame, would be no good to recognise it by ("" if it would do). */
+    private fun unfit(tr: Track): String {
+        val b = tr.box
+        val e = 0.008
+        return when {
+            tr.cut -> "cut"
+            tr.score < opt.minScore -> "unsure"
+            b[0] <= e || b[1] <= e || b[2] >= 1 - e || b[3] >= 1 - e -> "edge"
+            min((b[2] - b[0]) * frameW, (b[3] - b[1]) * frameH) < opt.minSide -> "small"
+            tr.id in parts -> "part"
+            tr.id in several -> "several"
+            tr.id in overlapped -> "overlap"
+            tr.id in close -> "close"
+            else -> ""
+        }
+    }
+
+    private fun wantsLook(tr: Track, t: Double): Boolean {
         tr.skipped = ""
         if (tr.unknown || tr.hits < 2) return false
         if (tr.waiting >= opt.maxWaiting) return false
@@ -313,17 +438,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         val turned = named && tr.lookShape > 0 && kotlin.math.abs(shape - tr.lookShape) / tr.lookShape > 0.18
         val gap = if (!named) (if (tr.taken && tr.looks.size >= opt.minLooks) opt.checkGapMs else opt.lookGapMs) else if (turned) minOf(opt.checkGapMs, 700.0) else opt.checkGapMs
         if (t - tr.lastSampleT < gap) return false
-        val e = 0.008
-        tr.skipped = when {
-            tr.cut -> "cut"
-            tr.score < opt.minScore -> "unsure"
-            b[0] <= e || b[1] <= e || b[2] >= 1 - e || b[3] >= 1 - e -> "edge"
-            min((b[2] - b[0]) * frameW, (b[3] - b[1]) * frameH) < opt.minSide -> "small"
-            tr.id in parts -> "part"
-            tr.id in overlapped -> "overlap"
-            tr.id in close -> "close"
-            else -> ""
-        }
+        tr.skipped = unfit(tr)
         if (tr.skipped.isNotEmpty()) return false
         val r = region
         if (r != null) {
@@ -490,6 +605,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         if (counting) for (lk in tr.looks) if (cow.similarity(seen(lk)) >= bar.match) herd.addView(cow, lk.emb, lk.quality, now, lk.px, lk.aspect)
         tr.looks.clear()
         tr.mixed = false
+        named(tr)
     }
 
     private fun create(tr: Track, now: Long) {
@@ -522,6 +638,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         tr.looks.clear()
         tr.mixed = false
         session.fresh.add(cow.id)
+        named(tr)
     }
 
     /**
@@ -539,6 +656,7 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         if (s >= bar.match) {
             tr.mixed = false
             tr.looks.clear()
+            named(tr)
         }
         if (!tr.mixed) {
             if (counting) herd.addView(cow, emb, look.quality, now, look.px, look.aspect)
@@ -556,11 +674,263 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
         val b = p.best ?: return
         if (p.cow != null && p.cow !== cow && b.score >= bar.match && p.gap >= bar.margin) {
             tr.counted = false
+            // The box slipped from one cow onto another: the cow it was on is still where it was, and
+            // this one's place is somewhere near (the box that was on it before, most likely).
+            tr.notPlace = tr.place
+            tr.place = null
             assign(tr, p.cow, b.score, p.twin, now, bar)
         }
     }
 
     // ---------------------------------------------------------------- counting
+
+    /**
+     * Field count: gives each cow in view its place in the field, and counts the places.
+     *
+     * Boxes go to places by where they are, not by which track they belong to: among cows standing in a
+     * heap the boxes swap about and merge, and a box that has slipped from one cow to its neighbour must
+     * take the neighbour's place, not make a new one. So there are as many places in a spot as there
+     * were ever boxes there at once.
+     */
+    private fun place(live: List<Track>, frame: Frame, t: Double) {
+        if (zoomed) {
+            zoomed = false
+            steadyAt = t + ZOOM_SETTLE
+        }
+        val s = slide?.invoke(frame) ?: panner.update(frame)
+        if (s.sure && !s.lost) {
+            // The scene sliding left in the picture is the phone turning right.
+            panX -= s.dx / zoom
+            panY -= s.dy / zoom
+        } else {
+            // Nothing in the picture to go by (mist, bare ground), or it has changed past following: go by
+            // the cows themselves, which move far less from frame to frame than a turning phone slides
+            // them. Two or more must agree: one box on its own may be a cow walking, or a box changing shape.
+            val dx = ArrayList<Double>()
+            val dy = ArrayList<Double>()
+            for (tr in live) {
+                val was = tr.prev ?: continue
+                if (tr.hits < 3 || was.t != placedT || tr.id in parts || tr.id in several) continue
+                val a = was.box
+                val b = tr.box
+                // Not ones part out of the picture: their boxes grow and shrink as it slides.
+                if (minOf(a[0], b[0], a[1], b[1]) <= SIDE || maxOf(a[2], b[2], a[3], b[3]) >= 1 - SIDE) continue
+                dx.add((b[0] + b[2] - a[0] - a[2]) / 2)
+                dy.add((b[1] + b[3] - a[1] - a[3]) / 2)
+            }
+            var agree = 0
+            if (dx.size >= 2) {
+                val mx = middle(dx)
+                val my = middle(dy)
+                for (i in dx.indices) if (kotlin.math.abs(dx[i] - mx) < 0.015 && kotlin.math.abs(dy[i] - my) < 0.015) agree++
+                if (agree >= 2 && 2 * agree >= dx.size) {
+                    panX -= mx / zoom
+                    panY -= my / zoom
+                } else {
+                    agree = 0
+                }
+            }
+            if (s.lost && agree == 0) {
+                // Swung round too fast to follow, and no cows followed through it to say where to: start
+                // again from here. What was counted stays counted, and a cow still being followed is where
+                // its box is now.
+                lap++
+                swings++
+                for (tr in live) {
+                    val p = tr.place ?: continue
+                    if (p.lap == lap - 1 && tr.box[0] > SIDE && tr.box[2] < 1 - SIDE) {
+                        p.lap = lap
+                        moveTo(p, tr)
+                    }
+                }
+            }
+        }
+        placedT = t
+        // Just zoomed: the frames take a moment to catch up, and until they do boxes are in the wrong places.
+        if (t < steadyAt) return
+        // Only cows followed for long enough to be sure there is one.
+        val cows = ArrayList<Track>()
+        for (tr in live) {
+            if (tr.hits >= 4 && tr.topScore >= 0.55 && tr.id !in parts && tr.id !in several) cows.add(tr) else tr.place = null
+        }
+        // A box cut off by the side of the picture is part of a cow coming into view or leaving it: it can
+        // hold the cow's place, but it doesn't say where the cow is or how big, and it makes no new place.
+        val part = HashSet<Int>()
+        for (tr in cows) if (tr.box[0] <= SIDE || tr.box[2] >= 1 - SIDE) part.add(tr.id)
+        class Fit(val tr: Track, val p: Place, val by: Double)
+        val fits = ArrayList<Fit>()
+        for (tr in cows) {
+            val b = worldBox(tr)
+            for (p in places) {
+                if (p.lap != lap || p === tr.notPlace) continue
+                val pb = p.box()
+                val by = if (tr.id in part) CowDetector.inside(b, pb) * PLACE_FIT / PART_FIT else iou(b, pb)
+                if (by >= PLACE_FIT) fits.add(Fit(tr, p, by))
+            }
+        }
+        // The best fits first: a cow that hasn't moved has its own place back before a neighbour's box can take it.
+        fits.sortByDescending { it.by }
+        val taken = HashSet<Place>()
+        val placed = HashSet<Int>()
+        for (f in fits) {
+            if (f.p in taken || f.tr.id in placed) continue
+            taken.add(f.p)
+            placed.add(f.tr.id)
+            f.tr.place = f.p
+        }
+        // A whole cow with no place: before it is taken for one not seen before, is there a place close
+        // by that has been in the picture for a while with no cow on it? Then the cow that stood there has
+        // moved a little (or the picture has: a step to one side, a zoom the app wasn't told of), and this is it.
+        for (tr in cows) {
+            if (tr.id in placed || tr.id in part) continue
+            val b = worldBox(tr)
+            val w = b[2] - b[0]
+            val h = b[3] - b[1]
+            var best: Place? = null
+            var near = Double.MAX_VALUE
+            for (p in places) {
+                if (p.lap != lap || p in taken || p === tr.notPlace || p.emptyMs < PLACE_EMPTY) continue
+                val dx = kotlin.math.abs(p.x - (b[0] + b[2]) / 2) / max(w, p.w)
+                val dy = kotlin.math.abs(p.y - (b[1] + b[3]) / 2) / max(h, p.h)
+                val ratio = (w * h) / max(1e-9, p.w * p.h)
+                if (dx > 1.0 || dy > 1.0 || ratio < 0.4 || ratio > 2.5) continue
+                val d = dx * dx + dy * dy
+                if (d < near) {
+                    near = d
+                    best = p
+                }
+            }
+            if (best != null) {
+                taken.add(best)
+                placed.add(tr.id)
+                tr.place = best
+            }
+        }
+        for (tr in cows) {
+            val whole = tr.id !in part
+            if (tr.id !in placed) {
+                if (!whole) {
+                    tr.place = null
+                    continue
+                }
+                val b = worldBox(tr)
+                tr.place = Place(nextPlace++, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, b[2] - b[0], b[3] - b[1], lap).also {
+                    it.firstT = t
+                    places.add(it)
+                }
+            }
+            val p = tr.place!!
+            if (whole) moveTo(p, tr)
+            // Time between frames counts up to a point: a gap is the cow out of sight, not seen.
+            if (p.hits > 0) p.seenMs += min(t - p.lastT, 300.0)
+            p.lastT = t
+            p.hits++
+            p.emptyMs = 0.0
+            // A cow that may yet be named by its looks: it is being looked at, and good to look at.
+            p.naming = tr.cowId == null && !tr.unknown && !tr.taken && tr.looks.size + tr.waiting < opt.maxLooks && unfit(tr).isEmpty()
+            if (tr.namePlace && whole) {
+                tr.namePlace = false
+                name(p, tr)
+            }
+        }
+        // Places in the picture with no cow on them: how long for.
+        val dt = if (emptyT < 0) 0.0 else min(t - emptyT, 300.0)
+        emptyT = t
+        for (p in places) {
+            if (p in taken) continue
+            p.naming = false
+            if (p.lap != lap) continue
+            val x0 = (p.x - p.w / 2 - panX) * zoom + 0.5
+            val x1 = (p.x + p.w / 2 - panX) * zoom + 0.5
+            val y0 = (p.y - p.h / 2 - panY) * zoom + 0.5
+            val y1 = (p.y + p.h / 2 - panY) * zoom + 0.5
+            // Well inside the picture: a cow there would be seen whole.
+            if (x0 > 0.03 && x1 < 0.97 && y0 > 0.0 && y1 < 1.0) p.emptyMs += dt
+        }
+        // Two places with a cow on each at once are two cows, whatever they are called: the name is kept
+        // where the cow goes by it (or else where it was given last), and the other place counts by itself.
+        val at = HashMap<Int, Track>()
+        for (tr in cows) {
+            val p = tr.place ?: continue
+            val id = p.cowId ?: continue
+            if (tr.id in part) continue
+            val other = at[id]
+            if (other == null) {
+                at[id] = tr
+                continue
+            }
+            val q = other.place!!
+            val mine = tr.cowId == id
+            val theirs = other.cowId == id
+            if (if (mine != theirs) mine else p.since > q.since) {
+                unname(q)
+                at[id] = tr
+            } else {
+                unname(p)
+            }
+        }
+        // A named cow counts once however many places it has stood in. A place with no name counts once a
+        // cow has been seen there for long enough that it isn't a box flickering; and if that cow is being
+        // looked at, once it has had time to be named: it may be one counted already, that has moved.
+        val who = HashSet<Int>()
+        var unnamed = 0
+        for (p in places) {
+            val id = p.cowId
+            if (id != null && herd[id] != null) who.add(id)
+            else if (p.seenMs >= PLACE_SURE && !(p.naming && t - p.firstT < PLACE_NAMING)) unnamed++
+        }
+        who.addAll(session.seen.keys)
+        session.placed = who.size + unnamed
+    }
+
+    /** The middle value of a list (the mean of the middle two when there's an even number). */
+    private fun middle(v: List<Double>): Double {
+        val s = v.sorted()
+        return if (s.size % 2 == 1) s[s.size / 2] else (s[s.size / 2 - 1] + s[s.size / 2]) / 2
+    }
+
+    /** A track's box in the field: as it would be in the picture had the phone not been turned or zoomed since the count began. */
+    private fun worldBox(tr: Track): DoubleArray {
+        val b = tr.box
+        return doubleArrayOf(panX + (b[0] - 0.5) / zoom, panY + (b[1] - 0.5) / zoom, panX + (b[2] - 0.5) / zoom, panY + (b[3] - 0.5) / zoom)
+    }
+
+    private fun moveTo(p: Place, tr: Track) {
+        val b = worldBox(tr)
+        p.x = (b[0] + b[2]) / 2
+        p.y = (b[1] + b[3]) / 2
+        p.w = b[2] - b[0]
+        p.h = b[3] - b[1]
+    }
+
+    /**
+     * A look has settled who a track is (it was named, or a later look agreed with its name): the place
+     * it stands on is that cow's. A named box that merely slides onto a place doesn't name it: among cows
+     * standing close the boxes slip from one cow to the next.
+     */
+    private fun named(tr: Track) {
+        val p = tr.place
+        if (p != null) name(p, tr) else tr.namePlace = true
+    }
+
+    private fun name(p: Place, tr: Track) {
+        val id = tr.cowId ?: return
+        // Already found out not to be that cow, however alike they look.
+        if (p.notCow == id) return
+        if (p.cowId != id) {
+            p.cowId = id
+            p.since = lastT
+        }
+        // The cow is found again where it stood before: it was never at the places it was "seen" at in
+        // between, so the cows there are others that look like it. They count by their places.
+        for (q in places) if (q !== p && q.cowId == id && q.since > p.since) unname(q)
+    }
+
+    /** The cow at this place isn't the one it was taken for: the place counts by itself from now on. */
+    private fun unname(p: Place) {
+        p.notCow = p.cowId
+        p.cowId = null
+    }
 
     /** Field count: a named cow in view is counted, once. */
     private fun register(tr: Track, now: Long, saved: MutableList<Sighting>) {
@@ -659,6 +1029,23 @@ class Scan(val herd: Herd, val opt: ScanOptions, private val embedder: Embedder)
                 name(tr.best), tr.best?.score ?: 0.0, name(tr.second), tr.second?.score ?: 0.0, tr.agree, tr.vx, tr.vy,
             )
         }
+    }
+
+    /**
+     * The places cows have been counted at that are in or near the picture now, as boxes in the picture
+     * (for debug mode): which cow was named there, and whether the place counts yet.
+     */
+    fun placesInPicture(): List<PlaceShown> = synchronized(herd) {
+        val out = ArrayList<PlaceShown>()
+        for (p in places) {
+            if (p.lap != lap) continue
+            val b = p.box()
+            val box = doubleArrayOf((b[0] - panX) * zoom + 0.5, (b[1] - panY) * zoom + 0.5, (b[2] - panX) * zoom + 0.5, (b[3] - panY) * zoom + 0.5)
+            if (box[2] < 0 || box[0] > 1 || box[3] < 0 || box[1] > 1) continue
+            val cow = p.cowId?.let { herd[it] }
+            out.add(PlaceShown(p.id, box, cow?.label ?: "", cow != null || (p.seenMs >= PLACE_SURE && !(p.naming && lastT - p.firstT < PLACE_NAMING))))
+        }
+        out
     }
 
     /** Gate: where each recognised cow went last (1 or 2), from crossings so far (cows still in view included). */

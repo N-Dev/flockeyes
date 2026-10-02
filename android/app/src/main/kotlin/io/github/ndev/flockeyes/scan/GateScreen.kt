@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -280,6 +283,7 @@ fun GateScreen() {
                     line = line, editing = editing,
                     dir1 = if (editing) dir1.ifBlank { Gate.directionNames(draft, aspect).first } else prefs.dir1,
                     dir2 = if (editing) dir2.ifBlank { Gate.directionNames(draft, aspect).second } else prefs.dir2,
+                    topClear = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 54.dp,
                     modifier = Modifier.fillMaxSize().pointerInput(editing, aspect) {
                         if (!editing) return@pointerInput
                         awaitEachGesture {

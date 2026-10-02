@@ -4,6 +4,7 @@ import io.github.ndev.flockeyes.core.count.FrameOut
 import io.github.ndev.flockeyes.core.count.Gate
 import io.github.ndev.flockeyes.core.count.Scan
 import io.github.ndev.flockeyes.core.count.ScanOptions
+import io.github.ndev.flockeyes.core.count.Slide
 import io.github.ndev.flockeyes.core.detect.Det
 import io.github.ndev.flockeyes.core.herd.Cow
 import io.github.ndev.flockeyes.core.herd.Herd
@@ -360,6 +361,320 @@ class ScanLogicTest {
         assertEquals(20, b.scan.session.count)
         val plain = count(tuned = false)
         assertTrue(plain.herd.size >= 25, "without it many of the same cows are learnt again as new ones (${plain.herd.size} entries for 20 cows)")
+    }
+
+    // ---------------------------------------------------------------- where the cows stand
+
+    /**
+     * A field wider than the picture, and a phone panning across it: cows stand where `cows` says (boxes in
+     * picture widths and heights, the field starting at 0), the phone's view starts `at` picture widths
+     * along and shows one width of it, magnified `zoom` times about its middle.
+     */
+    private class Pan(val f: Field, val cows: MutableMap<Int, DoubleArray>) {
+        var at = 0.0
+        var zoom = 1.0
+        private var last = 0.0
+
+        init {
+            f.scan.slide = { Slide(-(at - last) * zoom, 0.0, sure = true).also { last = at } }
+        }
+
+        fun step() {
+            f.scan.zoom = zoom
+            val seen = LinkedHashMap<Int, DoubleArray>()
+            for ((cow, b) in cows) {
+                val x1 = 0.5 + (b[0] - at - 0.5) * zoom
+                val x2 = 0.5 + (b[2] - at - 0.5) * zoom
+                val y1 = 0.5 + (b[1] - 0.5) * zoom
+                val y2 = 0.5 + (b[3] - 0.5) * zoom
+                // In view if most of it is in the picture; what's outside is cut off.
+                val inside = (minOf(1.0, x2) - maxOf(0.0, x1)) / (x2 - x1)
+                if (inside < 0.6 || y1 < 0 || y2 > 1) continue
+                seen[cow] = doubleArrayOf(maxOf(0.0, x1), y1, minOf(1.0, x2), y2)
+            }
+            f.step(seen)
+        }
+
+        fun to(x: Double, by: Double = 0.03) {
+            while (kotlin.math.abs(at - x) > 1e-9) {
+                at += (x - at).coerceIn(-by, by)
+                step()
+            }
+        }
+
+        fun stay(n: Int) = repeat(n) { step() }
+    }
+
+    @Test
+    fun cowsStandingTooCloseToTellApartAreCountedByWhereTheyStandAsThePhonePans() {
+        val f = Field()
+        // Twelve in a row, shoulder to shoulder, across three picture widths.
+        val pan = Pan(f, (1..12).associateWith { doubleArrayOf(0.02 + 0.25 * (it - 1), 0.4, 0.02 + 0.25 * (it - 1) + 0.24, 0.62) }.toMutableMap())
+        f.scan.start(gate = false)
+        pan.stay(6)
+        pan.to(2.05)
+        pan.stay(4)
+        assertEquals(0, f.herd.size, "none stands clear enough to be looked at")
+        assertEquals(12, f.scan.session.count, "each counted once on the way across")
+        assertTrue(f.scan.session.peak <= 5, "though never more than four or five in view (${f.scan.session.peak})")
+        pan.to(0.0)
+        pan.to(1.0)
+        assertEquals(12, f.scan.session.count, "and not again on the way back")
+        assertEquals(12, f.scan.places.size)
+        assertEquals(1.0, f.scan.panX, 1e-6)
+    }
+
+    @Test
+    fun aCowWhoseBoxIsLostAndFoundIsCountedOnce() {
+        val f = Field()
+        // Three small cows far off (too small to recognise), seen on and off, never all three together.
+        val a = Field.box(0.2, w = 0.03, h = 0.05)
+        val b = Field.box(0.5, w = 0.03, h = 0.05)
+        val c = Field.box(0.8, w = 0.03, h = 0.05)
+        f.scan.start(gate = false)
+        repeat(3) {
+            f.steps(8, mapOf(1 to a, 2 to b))
+            f.steps(10, emptyMap())
+            f.steps(8, mapOf(2 to b, 3 to c))
+            f.steps(10, emptyMap())
+            f.steps(8, mapOf(1 to a, 3 to c))
+            f.steps(10, emptyMap())
+        }
+        assertEquals(0, f.herd.size)
+        assertEquals(2, f.scan.session.peak)
+        assertEquals(3, f.scan.session.count, "three places, however often each came and went")
+    }
+
+    @Test
+    fun aNamedCowThatHasMovedIsStillOneCow() {
+        val f = Field()
+        val pan = Pan(f, mutableMapOf(1 to Field.box(0.3), 2 to Field.box(0.6, w = 0.03, h = 0.05)))
+        f.scan.start(gate = false)
+        pan.stay(10)
+        assertEquals(1, f.herd.size, "the cow standing clear is learnt; the far one is only counted")
+        assertEquals(2, f.scan.session.count)
+        // The phone turns away; meanwhile the cow walks along the field; the phone finds it again there.
+        pan.to(1.2)
+        pan.cows[1] = Field.box(1.9)
+        pan.to(1.5)
+        pan.stay(10)
+        assertEquals(1, f.herd.size, "known by its looks")
+        assertEquals(2, f.scan.session.count, "one cow, though it has stood in two places")
+        assertEquals(3, f.scan.places.size)
+    }
+
+    @Test
+    fun aKnownCowThatHasMovedIsNotCountedAsAnotherWhileItIsBeingLookedAt() {
+        val f = Field()
+        f.scan.start(gate = false)
+        // A cow far off (so that the count isn't simply the most in view at once), and one learnt.
+        f.steps(8, mapOf(9 to Field.box(0.45, feet = 0.3, w = 0.03, h = 0.05)))
+        f.steps(10, emptyMap())
+        f.steps(10, mapOf(1 to Field.box(0.1)))
+        f.steps(10, emptyMap())
+        assertEquals(2, f.scan.session.count)
+        // The learnt cow turns up somewhere else. The recognition model is slow: its answers come a
+        // second and a half late, long after the cow has been seen standing in its new place.
+        val late = ArrayDeque<Pair<Int, io.github.ndev.flockeyes.core.count.Look>>()
+        var most = 0
+        for (i in 0 until 25) {
+            val out = f.scan.frame(listOf(Det("cow", 0.9, Field.box(0.6))), BlankFrame(), f.t, f.now, budget = 4)
+            for (lk in out.looks) late.addLast(i to lk)
+            while (late.isNotEmpty() && late.first().first <= i - 7) f.scan.look(late.removeFirst().second, f.lookOf(1), f.now)
+            f.t += 200.0
+            f.now += 200
+            most = maxOf(most, f.scan.session.count)
+        }
+        assertEquals(1, f.herd.size, "known again")
+        assertEquals(2, most, "and never counted as a third cow while it waited to be named")
+        // A cow that can't be looked at (too far off) doesn't wait: it counts as soon as it's surely there.
+        f.steps(7, mapOf(8 to Field.box(0.85, feet = 0.3, w = 0.03, h = 0.05)))
+        assertEquals(3, f.scan.session.count)
+    }
+
+    @Test
+    fun aCowFoundAStepFromWhereItStoodTakesItsOldPlace() {
+        val f = Field()
+        // Two cows far off (too small to recognise). One stays in view throughout.
+        val other = Field.box(0.80, feet = 0.3, w = 0.03, h = 0.05)
+        f.scan.start(gate = false)
+        f.steps(8, mapOf(1 to Field.box(0.300, w = 0.03, h = 0.05), 9 to other))
+        assertEquals(2, f.scan.session.count)
+        // The first one's box is lost for two seconds, its place in plain view with no cow on it; then
+        // there is a cow most of a cow's length along from it.
+        f.steps(10, mapOf(9 to other))
+        f.steps(8, mapOf(1 to Field.box(0.325, w = 0.03, h = 0.05), 9 to other))
+        assertEquals(2, f.scan.session.count, "the same cow, a step along: not another")
+        assertEquals(2, f.scan.places.size)
+        // But a cow turning up beside a place that emptied only a moment ago is another cow.
+        f.steps(2, mapOf(9 to other))
+        f.steps(8, mapOf(2 to Field.box(0.350, w = 0.03, h = 0.05), 9 to other))
+        assertEquals(3, f.scan.session.count)
+    }
+
+    @Test
+    fun zoomingDoesNotMoveTheCows() {
+        val f = Field()
+        val pan = Pan(f, (1..4).associateWith { doubleArrayOf(0.30 + 0.105 * (it - 1), 0.45, 0.30 + 0.105 * (it - 1) + 0.1, 0.55) }.toMutableMap())
+        f.scan.start(gate = false)
+        pan.stay(8)
+        assertEquals(4, f.scan.session.count)
+        pan.zoom = 2.0
+        pan.stay(8)
+        pan.zoom = 1.0
+        pan.stay(8)
+        assertEquals(4, f.scan.session.count, "the same four, bigger and smaller")
+        assertEquals(4, f.scan.places.size)
+    }
+
+    @Test
+    fun whenThePictureGivesNothingToGoByTheCowsThemselvesDo() {
+        val f = Field()
+        val pan = Pan(f, (1..12).associateWith { doubleArrayOf(0.02 + 0.25 * (it - 1), 0.4, 0.02 + 0.25 * (it - 1) + 0.24, 0.62) }.toMutableMap())
+        // Mist, or bare ground: no fit to be had from the picture.
+        f.scan.slide = { Slide(0.0, 0.0, sure = false) }
+        f.scan.start(gate = false)
+        pan.stay(6)
+        pan.to(2.05)
+        pan.stay(4)
+        assertEquals(2.05, f.scan.panX, 0.02, "the phone's turning is told from how the cows slide across the picture")
+        assertEquals(12, f.scan.session.count)
+        pan.to(0.0)
+        pan.stay(4)
+        assertEquals(12, f.scan.session.count, "and not again on the way back")
+    }
+
+    @Test
+    fun aBoxThatFlickersInForAMomentIsNotACow() {
+        val f = Field()
+        val cow = Field.box(0.2, w = 0.03, h = 0.05)
+        val bush = Field.box(0.7, w = 0.03, h = 0.05)
+        f.scan.start(gate = false)
+        f.steps(6, mapOf(1 to cow))
+        f.steps(4, mapOf(1 to cow, 2 to bush))
+        f.steps(12, mapOf(1 to cow))
+        assertEquals(1, f.scan.session.count, "a box there for under a second isn't counted")
+        f.steps(8, mapOf(1 to cow, 2 to bush))
+        assertEquals(2, f.scan.session.count, "one that stays is")
+    }
+
+    @Test
+    fun cowsInAHeapAreCountedByHowManyBoxesThereWereAtOnce() {
+        val f = Field()
+        // Three cows standing half in front of each other: the cow finder boxes them now singly, now two as one.
+        val a = doubleArrayOf(0.30, 0.40, 0.50, 0.62)
+        val b = doubleArrayOf(0.42, 0.38, 0.62, 0.60)
+        val c = doubleArrayOf(0.55, 0.42, 0.75, 0.64)
+        val ab = doubleArrayOf(0.30, 0.38, 0.62, 0.62)
+        val bc = doubleArrayOf(0.42, 0.38, 0.75, 0.64)
+        f.scan.start(gate = false)
+        repeat(4) {
+            f.steps(6, mapOf(1 to a, 2 to b, 3 to c))
+            f.steps(5, mapOf(4 to ab, 3 to c))
+            f.steps(5, mapOf(1 to a, 5 to bc))
+            f.steps(5, mapOf(2 to b, 3 to c))
+            // Singly and as one at the same time: the box round two of them isn't a fourth cow.
+            f.steps(5, mapOf(1 to a, 2 to b, 4 to ab, 3 to c))
+            f.steps(9, emptyMap())
+        }
+        assertEquals(3, f.scan.session.peak)
+        assertEquals(3, f.scan.session.count, "three, however the boxes came and went")
+        assertEquals(0, f.herd.size, "none stood clear enough to be looked at")
+    }
+
+    @Test
+    fun aNamedBoxThatSlidesOntoTheNextCowDoesNotHideIt() {
+        val f = Field()
+        val a = doubleArrayOf(0.30, 0.38, 0.52, 0.62)
+        val b = doubleArrayOf(0.46, 0.40, 0.62, 0.62)
+        val both = doubleArrayOf(0.30, 0.38, 0.62, 0.62)
+        f.scan.start(gate = false)
+        // A cow far off, seen for a while (so that the count isn't simply the most in view at once).
+        f.steps(8, mapOf(9 to Field.box(0.85, w = 0.03, h = 0.05)))
+        f.steps(10, emptyMap())
+        f.steps(10, mapOf(1 to a))
+        assertEquals(1, f.herd.size, "a cow standing clear is learnt")
+        // Another comes to stand half behind it: counted by its place, never looked at.
+        f.steps(8, mapOf(1 to a, 2 to b))
+        assertEquals(3, f.scan.session.count)
+        // The two are boxed as one for a while, and then the box settles on the second cow alone.
+        f.steps(9, mapOf(3 to both))
+        f.steps(12, mapOf(2 to b))
+        val onB = f.scan.tracker.tracks.single()
+        assertEquals(1, f.herd.size)
+        assertTrue(onB.cowId != null && f.truth[onB.id] == 2, "the box that was on the first cow is on the second now, still under the first cow's name")
+        assertEquals(2, f.scan.session.peak)
+        assertEquals(3, f.scan.session.count, "but the second cow's place isn't taken for the first cow's: still three")
+    }
+
+    @Test
+    fun aLookAlikeTakenForACowElsewhereStillCountsOnceBothAreSeen() {
+        fun field(): Field {
+            val f = Field()
+            // The second cow looks, to the recognition model, just like the first.
+            f.disguise[2] = 1
+            f.scan.start(gate = false)
+            // A cow far off, so that the count isn't simply the most in view at once.
+            f.steps(8, mapOf(9 to Field.box(0.45, feet = 0.3, w = 0.03, h = 0.05)))
+            f.steps(10, emptyMap())
+            f.steps(10, mapOf(1 to Field.box(0.1)))
+            f.steps(10, emptyMap())
+            f.steps(10, mapOf(2 to Field.box(0.7)))
+            assertEquals(1, f.herd.size, "taken for the first cow")
+            assertEquals(2, f.scan.session.count, "which has moved, for all the app can tell")
+            return f
+        }
+        // Both in view at once: two places with a cow on each are two cows.
+        val a = field()
+        a.steps(10, mapOf(1 to Field.box(0.1), 2 to Field.box(0.7)))
+        assertEquals(3, a.scan.session.count)
+        assertEquals(1, a.herd.size, "the look-alike isn't learnt: the two can't be told apart")
+        // Or the first cow is found again where it was: it never moved, so the other is a look-alike.
+        val b = field()
+        b.steps(10, emptyMap())
+        b.steps(10, mapOf(1 to Field.box(0.1)))
+        assertEquals(3, b.scan.session.count)
+        // And once that is known, the look-alike isn't taken for it again.
+        b.steps(10, emptyMap())
+        b.steps(10, mapOf(2 to Field.box(0.7)))
+        assertEquals(3, b.scan.session.count)
+    }
+
+    @Test
+    fun swungRoundTooFastToFollowWhatWasCountedStaysCounted() {
+        val f = Field()
+        var lost = false
+        f.scan.slide = { Slide(0.0, 0.0, sure = !lost, lost = lost) }
+        val far = (1..3).associateWith { Field.box(0.1 + 0.3 * (it - 1), w = 0.03, h = 0.05) }
+        f.scan.start(gate = false)
+        f.steps(8, far)
+        assertEquals(3, f.scan.session.count)
+        // The picture can't be followed for a moment, but the cows are still in view, where they were:
+        // they vouch for where the phone points, and nothing is lost.
+        lost = true
+        f.steps(1, far)
+        lost = false
+        f.steps(6, far)
+        assertEquals(3, f.scan.session.count)
+        assertEquals(0, f.scan.swings)
+        // Swung away and back in one go: where the phone points now can't be known, so cows seen from
+        // here on are taken for others. (Counting twice is the lesser evil: it shows, and can be put right.)
+        f.steps(8, emptyMap())
+        lost = true
+        f.steps(1, emptyMap())
+        lost = false
+        f.steps(8, far)
+        assertEquals(6, f.scan.session.count)
+        assertEquals(1, f.scan.swings)
+        // Lost with one cow still followed (one alone can't vouch: it may be walking): it keeps its place.
+        val one = mapOf(1 to far.getValue(1))
+        f.steps(12, one)
+        lost = true
+        f.steps(1, one)
+        lost = false
+        f.steps(6, one)
+        assertEquals(2, f.scan.swings)
+        assertEquals(6, f.scan.session.count, "a cow followed through it isn't counted again")
     }
 
     // ---------------------------------------------------------------- gate

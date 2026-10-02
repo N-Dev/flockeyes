@@ -52,6 +52,7 @@ import io.github.ndev.flockeyes.App
 import io.github.ndev.flockeyes.FINDER_CONF
 import io.github.ndev.flockeyes.ai.BitmapFrame
 import io.github.ndev.flockeyes.ai.Model
+import io.github.ndev.flockeyes.core.count.PlaceShown
 import io.github.ndev.flockeyes.core.count.Scan
 import io.github.ndev.flockeyes.core.count.ScanOptions
 import io.github.ndev.flockeyes.core.count.Shown
@@ -85,6 +86,8 @@ class VideoProgress(
     val named: Int,
     val fresh: Int,
     val peak: Int,
+    /** Debug mode: the places cows have been counted at, as they lie in this frame. */
+    val places: List<PlaceShown> = emptyList(),
 )
 
 /** A small copy of a frame for the screen (the decoder reuses its bitmap). */
@@ -135,7 +138,10 @@ class VideoCountJob(private val app: App, private val uri: Uri, private val info
             if (wall - shownAt > 300_000_000L) {
                 shownAt = wall
                 val s = scan.session
-                progress.value = VideoProgress(t, info.durationMs.toDouble(), n, t / ((wall - wall0) / 1e6).coerceAtLeast(1.0), previewOf(bmp), scan.shown(t), s.count, s.seen.size, s.fresh.size, s.peak)
+                progress.value = VideoProgress(
+                    t, info.durationMs.toDouble(), n, t / ((wall - wall0) / 1e6).coerceAtLeast(1.0), previewOf(bmp), scan.shown(t), s.count, s.seen.size, s.fresh.size, s.peak,
+                    if (p.debug) scan.placesInPicture() else emptyList(),
+                )
             }
             true
         }
@@ -153,7 +159,11 @@ class VideoCountJob(private val app: App, private val uri: Uri, private val info
         if (name.isNotBlank()) p.fieldNames = (listOf(name) + p.fieldNames.filter { it != name })
         app.dataChanged()
         val secs = (System.nanoTime() - wall0) / 1e9
-        DebugLog.add("video", "Video counted: ${s.count} cows (${s.seen.size} told apart, ${s.fresh.size} new) in $n frames, ${"%.0f".format(secs)} s (count $id)")
+        DebugLog.add(
+            "video",
+            "Video counted: ${s.count} cows (${s.seen.size} known by their markings, ${s.fresh.size} new, ${s.placed} by where they stood, most at once ${s.peak}) " +
+                "in $n frames, ${"%.0f".format(secs)} s (count $id)" + (if (scan.swings > 0) "; the picture swung too fast to follow ${scan.swings}×" else ""),
+        )
         progress.value = VideoProgress(info.durationMs.toDouble(), info.durationMs.toDouble(), n, info.durationMs / 1000.0 / secs.coerceAtLeast(0.001), progress.value?.preview, emptyList(), s.count, s.seen.size, s.fresh.size, s.peak)
         return id
     }
@@ -216,7 +226,7 @@ fun VideoCountScreen(uri: Uri, onClose: () -> Unit) {
                 Box(Modifier.fillMaxWidth().background(Color.Black)) {
                     Image(shown.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth)
                     if (progress != null && running) {
-                        CowOverlay(progress.boxes, emptyList(), l.info.aspect, doubleArrayOf(0.0, 0.0, 1.0, 1.0), app.prefs.debug, Modifier.matchParentSize())
+                        CowOverlay(progress.boxes, emptyList(), l.info.aspect, doubleArrayOf(0.0, 0.0, 1.0, 1.0), app.prefs.debug, Modifier.matchParentSize(), places = progress.places)
                     }
                 }
                 Text(
@@ -228,7 +238,7 @@ fun VideoCountScreen(uri: Uri, onClose: () -> Unit) {
                     done != null -> {
                         Text("Done: ${cows(progress?.count ?: 0)} counted", color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "${progress?.named ?: 0} told apart, ${progress?.fresh ?: 0} learnt as new; the most in view at once was ${progress?.peak ?: 0}.",
+                            "${progress?.named ?: 0} known by their markings, ${progress?.fresh ?: 0} learnt as new; the most in view at once was ${progress?.peak ?: 0}.",
                             color = C.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
                         )
                         Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

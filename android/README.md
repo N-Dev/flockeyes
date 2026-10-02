@@ -9,7 +9,7 @@ versions install over the old one and keep the herd, counts and settings. Androi
 
 | Tab | What it does |
 |---|---|
-| **Field** | A field count: tap Start and hold the phone on the cows. Each cow standing clear of the others is named if the app knows it, or learnt if it doesn't. Shows cows counted (never fewer than were in view at once), in view now, new cows, and which cows of the herd haven't been seen yet. Pinch or use the zoom buttons; "Far away" analyses the picture in two halves so distant cows show bigger. Can also count the cows in a video (the menu, or *Share → Flock Eyes* from the gallery). |
+| **Field** | A field count: tap Start, stand in one spot and pan slowly across the field. Each cow is counted once by where it stands, however often the phone passes over it. Each cow standing clear of the others is named if the app knows it, or learnt if it doesn't, and is then counted once wherever it wanders. Shows cows counted, in view, known by their markings, new cows, and which cows of the herd haven't been seen yet. Pinch or use the zoom buttons; "Far away" analyses the picture in two halves so distant cows show bigger. Can also count the cows in a video (the menu, or *Share → Flock Eyes* from the gallery). |
 | **Gate** | A gate count: set a line across a gap, gateway or the way out of the parlour, then Start. Cows are counted each way as they cross it and named as they pass. Carries on with the screen off; the screen dims while counting and the tabs are hidden so it can't be stopped by accident. |
 | **Herd** | Every cow the app knows, with the small pictures it's recognised from. Give each a name or tag number, remove a wrong picture, merge two entries that are one cow (the app points out pairs that look alike), delete, export as CSV. |
 | **Counts** | Saved counts: who was counted and when, which cows of the herd weren't seen, CSV export. |
@@ -36,33 +36,53 @@ versions install over the old one and keep the herd, counts and settings. Androi
    looks, and its new looks are added to what's known of it: that is how the app learns a cow's other
    side. Only a box that has been in among other animals can have slipped onto another cow; it is renamed
    if its looks come to be clearly another cow's.
-7. **Counting.** A field count is the number of different cows named, and never fewer than were in view at
-   once (the middle of five frames, so a box that flickers doesn't count). A gate count is the number of
-   times a cow's feet went from clearly one side of the line to clearly the other, each way.
+7. **Counting a field: by where the cows stand.** The app works out how the phone is being turned from
+   the pictures themselves (`core/count/Pan.kt`: a small grey copy of each frame is slid over an earlier
+   one to find where they fit; a phone held still adds nothing up, however the cows move about). So each
+   cow has a place in the field, however the phone pans or zooms, and the count is the number of places
+   (`Scan.place`). Boxes go to places by where they are, not by which box was followed: among cows standing
+   close the boxes swap about and merge, so there are as many places in a spot as there were ever boxes
+   there at once. A box cut off by the side of the picture is a cow coming into view, and waits until it
+   is whole; a box round several others is those cows, not one more; a box there for under a second is
+   nothing; and a cow turning up beside a place that has stood in plain view with no cow on it is the cow
+   that stood there, a step along. A named cow counts once however many places it has stood in (and a
+   cow being looked at is given time to be named before its place counts, in case it is one counted
+   already that has moved). But two places with a cow on each at once are two cows whatever they're
+   called, and so is a place whose cow was "seen" elsewhere and then found where it was: the app takes
+   those for look-alikes and counts both. The count is never fewer than were in view at once (the middle
+   of five frames, so a box that flickers doesn't count).
+8. **Counting at a gate.** The number of times a cow's feet went from clearly one side of the line to
+   clearly the other, each way.
 
-What it can't do: count a herd that is bunched up and wider than the picture (use a gate count); tell
-apart cows with plain coats; know that the left and right side of a cow are the same animal (unless it
-watches the cow turn round, or you merge the two entries); recognise cows that are small in the picture or
-hidden behind each other. What was measured, in field videos and on barn photos, is in
-[docs/recognition.md](../docs/recognition.md).
+What it can't do: count cows hidden behind others, or a herd on the move (cows that walk about unnamed
+while the phone points elsewhere may be counted twice: use a gate count); keep the cows' places if you walk
+about while counting, or swing the phone faster than it can follow (it says so, and carries on from
+there); tell apart cows with plain coats; know that the left and right side of a cow are the same animal
+(unless it watches the cow turn round, or you merge the two entries); recognise cows that are small in
+the picture or hidden behind each other. What was measured is in [docs/counting.md](../docs/counting.md) (counting, on
+videos of cattle in fields) and [docs/recognition.md](../docs/recognition.md) (telling cows apart, in
+field videos and on barn photos).
 
 ## Debug mode
 
 Settings → Developer → Debug mode. On the Field and Gate screens it draws what the cow finder found in the
 frame (dashed, with what it called it and how sure), each cow's track number, how often it's been seen and
-looked at, why it wasn't looked at this time ("small", "edge", "unsure", "part", "overlap", "close", "cut"),
-and the two cows in the herd it's most like with their scores. A strip shows the camera and analysis frame
-rates, how long each step takes, the bars a look must clear, which accelerator each model is on, and the
-phone's heat, battery and memory, with a graph of frame times. Scores also show in the Herd and Counts
-tabs. In Settings a slider sets exactly how far a cow must stand out from the next most alike to be named,
-and the herd's pictures can be exported as a zip. The **debug log**
-lists what the app did, with **Copy** and **Share** (with the phone's details) for bug reports.
+looked at, why it wasn't looked at this time ("small", "edge", "unsure", "part", "several", "overlap",
+"close", "cut"), and the two cows in the herd it's most like with their scores. During a field count it
+also draws the places cows have been counted at (dotted: white once a place counts, red until it does,
+with the cow named there). A strip shows the camera and analysis frame rates, how long each step takes,
+the bars a look must clear, how many cows are counted by place and how far the phone has turned, which
+accelerator each model is on, and the phone's heat, battery and memory, with a graph of frame times.
+Scores also show in the Herd and Counts tabs. In Settings a slider sets exactly how far a cow must stand
+out from the next most alike to be named, and the herd's pictures can be exported as a zip. The **debug
+log** lists what the app did, with **Copy** and **Share** (with the phone's details) for bug reports.
 
 ## The code
 
 - `core/`: plain Kotlin, no Android. `detect` (the cow finder), `track`, `reid` (the recogniser and the
   tuning), `herd` (the cows and their looks, merging, finding doubles), `count` (`Scan` does the naming
-  and counting for both kinds of count; `Gate` is the line's geometry), `report` (CSV).
+  and counting for both kinds of count; `Pan` works out how the phone is turned; `Gate` is the line's
+  geometry), `report` (CSV).
 - `app/`: the Android app. `scan` (the live counters and their screens), `herd`, `history`, `settings`,
   `video`, `camera` (the camera belongs to the app, so a gate count carries on without a screen), `ai` (the
   models and the speed test), `data` (SQLite, backup, updates), `debug`, `service`.
@@ -71,15 +91,19 @@ lists what the app did, with **Copy** and **Share** (with the phone's details) f
 ### Tests
 
 - `core/src/test`: the naming and counting logic with pretend cows (learning, knowing again, one cow not in
-  two places, a cow followed as it turns round, a box that slips onto another cow, gate crossings and a
-  cow dithering on the line, merging); the tuning's sums; and the real models on real pictures
-  (`../tests/assets`): the cow finder and the recogniser against what the Python tools made of the barn
-  photos, and the whole chain on the frames of a real video of cows (`Replay.kt` plays any folder of
-  frames through it and can draw what it saw) and on a cow walking through a pretend gate.
+  two places, a cow followed as it turns round, a box that slips onto another cow, cows counted by where
+  they stand as the phone pans and zooms, heaps, look-alikes, boxes that flicker, gate crossings and a cow
+  dithering on the line, merging); the tuning's sums; working out the phone's turning from the pictures;
+  and the real models on real pictures (`../tests/assets`): the cow finder and the recogniser against what
+  the Python tools made of the barn photos, and the whole chain on the frames of real videos of cows
+  (`Replay.kt` plays any folder of frames through it and can draw what it saw; `Sweep` slides a window
+  across them as a phone would be panned) and on a cow walking through a pretend gate. `ClipsTest` does
+  nothing unless given a folder of clips to replay (`-Dflockeyes.clips=DIR`): it is how
+  [docs/counting.md](../docs/counting.md) was made.
 - `app/src/androidTest`: on an emulator in CI: the models through the app's own engine (and which
   accelerators work), every tab, a field count from the frames of the real video and a gate count from
-  pretend frames through to the saved count and the herd, a gate count in the background, debug mode,
-  backup and restore, the speed test. Screenshots are saved.
+  pretend frames through to the saved count and the herd, a video file counted with the device's decoder,
+  a gate count in the background, debug mode, backup and restore, the speed test. Screenshots are saved.
 
 CI builds the app, runs both, and publishes the arm64 APK as a GitHub release (from `main`; `next` only
 builds and tests). The build log, test results and emulator screenshots of the last run are on the

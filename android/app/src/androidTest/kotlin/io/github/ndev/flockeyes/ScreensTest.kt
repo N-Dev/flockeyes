@@ -198,6 +198,48 @@ class ScreensTest {
     }
 
     /**
+     * Counting the cows in a video file, read with the device's own decoder: the same cows at the heap of
+     * silage, as an .mp4. The two standing clear are learnt, and the count is saved as from a video.
+     */
+    @Test
+    fun aVideoFileIsCounted() {
+        waitForText("Start counting")
+        val file = java.io.File(app.cacheDir, "heap.mp4")
+        InstrumentationRegistry.getInstrumentation().context.assets.open("clips/heap.mp4").use { src -> file.outputStream().use { src.copyTo(it) } }
+        try {
+            app.openVideo.value = android.net.Uri.fromFile(file)
+            waitForText("Count the cows")
+            settle(2000)
+            Shots.take("30-video")
+            // Debug mode shows what the AI sees as it goes: each cow's box and scores, and the places counted.
+            app.prefs.debug = true
+            compose.onNodeWithText("Count the cows").performClick()
+            waitForText("so far", substring = true, timeoutMs = 60_000)
+            Shots.take("31-video-counting")
+            waitForText("Done:", substring = true, timeoutMs = 600_000)
+            app.prefs.debug = false
+            settle(1500)
+            Shots.take("32-video-done")
+            val c = app.db.counts().first()
+            Shots.log("video count: ${c.count} counted, ${c.fresh} new, most in view ${c.peak}; herd ${app.herd.size}; ${DebugLog.entries().lastOrNull { it.cat == "video" }?.msg}")
+            assertEquals("video", c.source)
+            assertEquals("field", c.kind)
+            assertTrue("counted with the ones behind (${c.count})", c.count in 3..4)
+            assertEquals("the two cows standing clear are learnt", 2, app.herd.size)
+            assertEquals(2, app.db.sightings(c.id).size)
+            compose.onNodeWithText("See it").performClick()
+            waitForText("counted from a video", substring = true)
+            settle(2000)
+            Shots.take("33-video-count")
+            compose.onNodeWithContentDescription("Back").performClick()
+        } finally {
+            app.prefs.debug = false
+            app.openVideo.value = null
+            file.delete()
+        }
+    }
+
+    /**
      * A gate count from pretend frames (a picture of a real cow moved across a plain background): one cow
      * out, another the other way, then the first one back in a picture taken half a minute later; who went
      * where is saved.

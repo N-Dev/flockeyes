@@ -172,6 +172,32 @@ class ModelsTest {
     }
 
     @Test
+    fun aPhonePannedAcrossTheCowsCountsEachOnce() {
+        // Seven cattle about a yard (one more is half out of the picture at its edge). The phone sees half
+        // the yard's width at a time: across, back, and across again.
+        val r = Replay()
+        r.start()
+        val pan = Sweep(r, Repo.clip("yard"), width = 0.5, top = 0.35)
+        pan.stay(6)
+        pan.to(pan.end)
+        pan.stay(6)
+        val across = r.scan.session.count
+        pan.to(0.0)
+        pan.stay(6)
+        val back = r.scan.session.count
+        pan.to(pan.end)
+        pan.stay(6)
+        val s = r.scan.session
+        println("  panned: across $across, back $back, across again ${s.count}; ${r.summary()}; turned %.3f (really %.3f)".format(r.scan.panX, pan.turned))
+        assertTrue(across in 6..7, "each counted on the way across: $across")
+        assertTrue(s.count in 6..7 && s.count - across <= 1, "and not again on the way back or the second time across: $across, $back, ${s.count}")
+        assertTrue(s.count > s.seen.size, "most by where they stand: few stand clear enough to be told apart by their markings (${s.seen.size})")
+        assertEquals(pan.turned, r.scan.panX, 0.03, "how far the phone turned, from the pictures alone")
+        assertEquals(0, r.scan.swings)
+        r.stop()
+    }
+
+    @Test
     fun aGateCountsCowsWalkingThroughAndKnowsOneOnItsWayBack() {
         val line = Gate.default()
         val r = Replay(gate = line, fps = 5.0)

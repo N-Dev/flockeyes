@@ -90,6 +90,25 @@ class AwtFrame(val img: BufferedImage) : Frame {
     }
 }
 
+/** A wide stretch of rough ground (blotches of greens and browns) for a pretend phone to pan across. */
+fun ground(w: Int, h: Int, seed: Long = 9): BufferedImage {
+    val img = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
+    val g = img.createGraphics()
+    val r = java.util.Random(seed)
+    g.color = java.awt.Color(0x6B, 0x8E, 0x4E)
+    g.fillRect(0, 0, w, h)
+    repeat(w * h / 900) {
+        g.color = java.awt.Color(60 + r.nextInt(90), 90 + r.nextInt(90), 40 + r.nextInt(70))
+        val s = 8 + r.nextInt(50)
+        g.fillOval(r.nextInt(w) - s / 2, r.nextInt(h) - s / 2, s, s / 2 + r.nextInt(s))
+    }
+    g.dispose()
+    return img
+}
+
+/** The part of a wide picture a phone would see: `w` x `h` with its left top corner at (x, y). */
+fun window(wide: BufferedImage, x: Int, y: Int, w: Int, h: Int): AwtFrame = AwtFrame(wide.getSubimage(x, y, w, h))
+
 /** A frame with nothing in it, for tests of the logic that never look at the picture. */
 class BlankFrame(override val width: Int = 1280, override val height: Int = 720) : Frame {
     override fun pixels(x: Double, y: Double, w: Double, h: Double, outW: Int, outH: Int, out: IntArray): IntArray = out

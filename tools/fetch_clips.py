@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Downloads freely licensed videos of cows from Wikimedia Commons (tools/clips.json) and packs frames of them.
+"""Downloads freely licensed videos of cows from Wikimedia Commons and packs frames of them.
 
-For each clip: its frames at 5 a second, 1280 wide, as JPEGs in OUT/clips.zip (NAME/0001.jpg ...), with
-index.json saying where each came from, who made it and under which licence; and a contact sheet
-(OUT/NAME.jpg) to see what's in it. Run by the Research workflow ("clips").
+For each clip in the list (tools/clips.json, or tools/LIST.json): its frames at 5 a second, 1280 wide, as
+JPEGs in OUT/LIST.zip (NAME/0001.jpg ...), with index.json saying where each came from, who made it and
+under which licence; and a contact sheet (OUT/NAME.jpg) to see what's in it. A clip may give "seconds":
+the most of it to take. Run by the Research workflow ("clips").
 
-Usage: fetch_clips.py OUT_DIR
+Usage: fetch_clips.py OUT_DIR [LIST]
 """
 import json
 import os
@@ -19,6 +20,7 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = sys.argv[1] if len(sys.argv) > 1 else "build/clips"
+LIST = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else "clips"
 API = "https://commons.wikimedia.org/w/api.php"
 UA = {"User-Agent": "FlockEyes research (https://github.com/N-Dev/flockeyes; cow counting app tests)"}
 FPS = 5
@@ -44,20 +46,20 @@ def strip(html):
 
 
 def download(url, path):
-    r = subprocess.run(["curl", "-fsSL", "--retry", "4", "--retry-all-errors", "--connect-timeout", "30", "--max-time", "900",
+    r = subprocess.run(["curl", "-fsSL", "--retry", "4", "--retry-all-errors", "--connect-timeout", "30", "--max-time", "1500",
                         "-A", UA["User-Agent"], "-o", path, url], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[-300:])
 
 
-def frames_ffmpeg(src, dest):
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-vf", f"fps={FPS},scale={WIDTH}:-2", "-q:v", "4", os.path.join(dest, "%04d.jpg")],
-                       capture_output=True, text=True)
+def frames_ffmpeg(src, dest, seconds):
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", src, "-t", str(seconds), "-vf", f"fps={FPS},scale={WIDTH}:-2", "-q:v", "4",
+                        os.path.join(dest, "%04d.jpg")], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip()[-300:])
 
 
-def frames_opencv(src, dest):
+def frames_opencv(src, dest, seconds):
     import cv2
 
     cap = cv2.VideoCapture(src)
@@ -68,7 +70,7 @@ def frames_opencv(src, dest):
     nxt = 0.0
     while True:
         ok, img = cap.read()
-        if not ok:
+        if not ok or k >= seconds * FPS:
             break
         if n >= nxt:
             k += 1
@@ -86,7 +88,7 @@ def main():
     import numpy as np
 
     os.makedirs(OUT, exist_ok=True)
-    clips = json.load(open(os.path.join(HERE, "clips.json")))
+    clips = json.load(open(os.path.join(HERE, LIST + ".json")))
     index = []
     have_ffmpeg = shutil.which("ffmpeg") is not None
     print("ffmpeg:", have_ffmpeg, flush=True)
@@ -106,10 +108,10 @@ def main():
             try:
                 if not have_ffmpeg:
                     raise RuntimeError("no ffmpeg")
-                frames_ffmpeg(src, dest)
+                frames_ffmpeg(src, dest, c.get("seconds", 120))
             except Exception as e:  # noqa: BLE001
                 print("  ffmpeg:", repr(e)[:160], "- trying OpenCV")
-                frames_opencv(src, dest)
+                frames_opencv(src, dest, c.get("seconds", 120))
         except Exception as e:  # noqa: BLE001
             print("failed:", c["title"], repr(e)[:200])
             continue
@@ -134,13 +136,13 @@ def main():
         time.sleep(1)
     with open(os.path.join(OUT, "index.json"), "w") as f:
         json.dump(index, f, indent=1)
-    with zipfile.ZipFile(os.path.join(OUT, "clips.zip"), "w", zipfile.ZIP_STORED) as z:
+    with zipfile.ZipFile(os.path.join(OUT, LIST + ".zip"), "w", zipfile.ZIP_STORED) as z:
         z.write(os.path.join(OUT, "index.json"), "index.json")
         for info in index:
             d = os.path.join(OUT, info["name"])
             for n in sorted(os.listdir(d)):
                 z.write(os.path.join(d, n), f"{info['name']}/{n}")
-    print("clips.zip: %.0f MB, %d clips, %d frames" % (os.path.getsize(os.path.join(OUT, "clips.zip")) / 1e6, len(index), sum(i["frames"] for i in index)))
+    print("%s.zip: %.0f MB, %d clips, %d frames" % (LIST, os.path.getsize(os.path.join(OUT, LIST + ".zip")) / 1e6, len(index), sum(i["frames"] for i in index)))
 
 
 if __name__ == "__main__":

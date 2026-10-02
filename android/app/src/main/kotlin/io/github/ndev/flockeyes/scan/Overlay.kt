@@ -23,12 +23,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.ndev.flockeyes.App
 import io.github.ndev.flockeyes.ai.Model
 import io.github.ndev.flockeyes.camera.zoomLabel
 import io.github.ndev.flockeyes.core.count.Gate
+import io.github.ndev.flockeyes.core.count.PlaceShown
 import io.github.ndev.flockeyes.core.count.Shown
 import io.github.ndev.flockeyes.core.detect.Det
 import io.github.ndev.flockeyes.debug.DebugStrip
@@ -67,7 +69,8 @@ fun boxColor(b: Shown): Color = when (b.state) {
 /**
  * The picture's overlay: the analysed area, each cow's box with its name (green once named, amber if just
  * learnt), and at a gate the line with which way is which. Debug mode adds what the finder saw this frame
- * (dashed), where each cow is heading, and for each cow its track number, looks and best two matches.
+ * (dashed), where each cow is heading, for each cow its track number, looks and best two matches, and (in
+ * a field count) the places cows have been counted at (dotted).
  */
 @Composable
 fun CowOverlay(
@@ -81,6 +84,9 @@ fun CowOverlay(
     editing: Boolean = false,
     dir1: String = "",
     dir2: String = "",
+    places: List<PlaceShown> = emptyList(),
+    /** How much of the top of the picture is under the status pill: the line's labels keep clear of it. */
+    topClear: Dp = 0.dp,
 ) {
     Canvas(modifier) {
         val r = videoRect(size.width, size.height, aspect)
@@ -106,6 +112,18 @@ fun CowOverlay(
                 val t = y(d.box[1])
                 drawRect(C.sky, Offset(l, t), Size(x(d.box[2]) - l, y(d.box[3]) - t), style = Stroke(1.dp.toPx(), pathEffect = dash))
                 canvas.drawText("${d.cls} %.2f${if (d.cut) " cut" else ""}".format(d.score), l, t - 3.dp.toPx(), small)
+            }
+            // Where cows have been counted: a place that counts is white, one not yet sure is red.
+            val dots = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx()))
+            for (p in places) {
+                val l = x(p.box[0].coerceIn(0.0, 1.0))
+                val t = y(p.box[1].coerceIn(0.0, 1.0))
+                val rr = x(p.box[2].coerceIn(0.0, 1.0))
+                val bb = y(p.box[3].coerceIn(0.0, 1.0))
+                val c = if (p.counts) Color.White else C.red
+                drawRect(c, Offset(l, t), Size(rr - l, bb - t), style = Stroke(1.5.dp.toPx(), pathEffect = dots))
+                small.color = c.toArgb()
+                canvas.drawText("p${p.id}" + (if (p.label.isEmpty()) "" else " ${p.label}"), l + 3.dp.toPx(), bb - 3.dp.toPx(), small)
             }
             for (b in boxes) {
                 // Half a second of travel at its current speed.
@@ -183,7 +201,9 @@ fun CowOverlay(
                     by = top + 6.dp.toPx() + (if (sign > 0) 0f else th + 4.dp.toPx())
                 }
                 val cx = bx.coerceIn(r.x + 2f, maxOf(r.x + 2f, r.x + r.w - tw - 2f))
-                val cy = by.coerceIn(r.y + 2f, maxOf(r.y + 2f, r.y + r.h - th - 2f))
+                // Under the status pill at the top, a label can't be read: it goes below it (the second below the first).
+                val clear = topClear.toPx() + (if (!level && sign < 0) th + 4.dp.toPx() else 0f)
+                val cy = maxOf(by, clear).coerceIn(r.y + 2f, maxOf(r.y + 2f, r.y + r.h - th - 2f))
                 drawRect(Color(0xB3000000), Offset(cx, cy), Size(tw, th))
                 paint.color = android.graphics.Color.WHITE
                 paint.textAlign = android.graphics.Paint.Align.LEFT
@@ -219,6 +239,10 @@ fun ScanDebug(ui: ScanUi, modifier: Modifier = Modifier) {
         add("picture %.0f ms · finder %.0f ms (%s, %d area%s) · after %.0f ms".format(ui.msPrep, ui.msFind, ui.model, ui.tiles, if (ui.tiles == 1) "" else "s", ui.msPost))
         add("look %.0f ms · %d waiting · %d taken · same cow ≥ %.2f and %.2f clear".format(ui.msLook, ui.waiting, ui.looks, ui.match, ui.margin))
         add("frame ${ui.frameW}×${ui.frameH} · ${ui.raw.size} found · ${ui.boxes.size} followed · herd ${app.herd.size}")
+        // A field count: cows counted by where they stand, and how far the phone has turned since it began.
+        if (ui.running && (ui.placed > 0 || ui.panX != 0.0 || ui.panY != 0.0)) {
+            add("by place ${ui.placed} · most at once ${ui.peak} · named ${ui.named} · turned %+.2f across, %+.2f down%s".format(ui.panX, ui.panY, if (ui.swings > 0) " · lost ${ui.swings}×" else ""))
+        }
         add(enginesText(listOf(Model.DET_TINY, Model.DET_NANO, Model.REID).filter { app.engine.isLoaded(it) }))
         health?.let { add(it.text()) }
     }

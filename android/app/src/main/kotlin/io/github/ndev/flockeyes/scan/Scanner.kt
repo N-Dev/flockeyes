@@ -8,6 +8,7 @@ import io.github.ndev.flockeyes.ai.Model
 import io.github.ndev.flockeyes.camera.FrameSink
 import io.github.ndev.flockeyes.core.count.Gate
 import io.github.ndev.flockeyes.core.count.Look
+import io.github.ndev.flockeyes.core.count.PlaceShown
 import io.github.ndev.flockeyes.core.count.Scan
 import io.github.ndev.flockeyes.core.count.ScanOptions
 import io.github.ndev.flockeyes.core.count.Shown
@@ -72,6 +73,13 @@ data class ScanUi(
     /** The bars in force: how alike, and how far clear of the next cow. */
     val match: Double = 0.0,
     val margin: Double = 0.0,
+    /** Field: times the phone was turned too fast to follow during this count. */
+    val swings: Int = 0,
+    /** Debug mode, field: cows counted by where they stand; those places as they lie in the picture; how far the phone has turned. */
+    val placed: Int = 0,
+    val places: List<PlaceShown> = emptyList(),
+    val panX: Double = 0.0,
+    val panY: Double = 0.0,
 )
 
 /**
@@ -118,6 +126,7 @@ class Scanner(private val app: App, val gate: Boolean) : FrameSink {
     @Volatile
     private var countedAt = 0L
     private var savedAt = 0L
+    private var swings = 0
 
     /** Settings changed (the line moved, strictness, learning): take them up. */
     fun reconfigure() {
@@ -150,7 +159,8 @@ class Scanner(private val app: App, val gate: Boolean) : FrameSink {
             running = true
             last = null
             savedAt = started
-            ui.value = ui.value.copy(running = true, started = started, countId = countId, count = 0, named = 0, peak = 0, unknown = 0, fresh = 0, n1 = 0, n2 = 0, last = null)
+            swings = 0
+            ui.value = ui.value.copy(running = true, started = started, countId = countId, count = 0, named = 0, peak = 0, unknown = 0, fresh = 0, n1 = 0, n2 = 0, last = null, swings = 0, placed = 0)
             val bar = scan.bars()
             DebugLog.add(
                 if (gate) "gate" else "field",
@@ -248,8 +258,14 @@ class Scanner(private val app: App, val gate: Boolean) : FrameSink {
         val res = detector.detect(f, net, rois, FINDER_CONF[p.sensitivity] ?: 0.3, p.lookalikes)
         // The recognition model takes one look at a time: don't queue more than it can soon get through.
         val budget = (3 - waiting.get()).coerceIn(0, 2)
+        // A field count keeps each cow's place as the phone pans: for that it must know the zoom.
+        if (!gate) scan.zoom = app.camera.zoom.value?.ratio?.toDouble() ?: 1.0
         val out = scan.frame(res.dets, f, t, now, budget)
         for (lk in out.looks) submit(lk)
+        if (running && scan.swings != swings) {
+            swings = scan.swings
+            DebugLog.add("field", "Turned too fast to follow ($swings): cows seen from here on are counted afresh")
+        }
         if (running) {
             save(out.saved)
             for (tr in out.named) announce(tr, now)
@@ -329,6 +345,11 @@ class Scanner(private val app: App, val gate: Boolean) : FrameSink {
             frameH = h,
             match = bar.match,
             margin = bar.margin,
+            swings = if (running) scan.swings else ui.value.swings,
+            placed = if (running) s.placed else ui.value.placed,
+            places = if (debug && !gate && running) scan.placesInPicture() else emptyList(),
+            panX = scan.panX,
+            panY = scan.panY,
         )
     }
 

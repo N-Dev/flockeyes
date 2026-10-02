@@ -1,5 +1,6 @@
 package io.github.ndev.flockeyes.core
 
+import io.github.ndev.flockeyes.core.count.PanEstimator
 import io.github.ndev.flockeyes.core.detect.CowDetector
 import io.github.ndev.flockeyes.core.detect.Det
 import io.github.ndev.flockeyes.core.report.CountInfo
@@ -97,6 +98,10 @@ class PartsTest {
         // A cow that turns up afterwards is a new track.
         tr.update(listOf(det(0.42, 0.3, 0.57, 0.5)), 5000.0)
         assertEquals(3, tr.tracks.single().id)
+        // And so is one standing in the same place after a pause with no frames at all (the camera stopped).
+        val u3 = tr.update(listOf(det(0.42, 0.3, 0.57, 0.5)), 65_000.0)
+        assertEquals(4, tr.tracks.single().id)
+        assertEquals(listOf(3), u3.lost.map { it.id })
     }
 
     @Test
@@ -212,5 +217,73 @@ class PartsTest {
         assertTrue(tuned > looks.size * 0.95, "tuned: $tuned")
         assertTrue(same > 0.6, "same cow $same")
         assertTrue(abs(other) < 0.15, "different cows $other")
+    }
+
+    // ---------------------------------------------------------------- the phone panning
+
+    @Test
+    fun theSlideOfThePictureIsWorkedOutFromThePictures() {
+        val wide = ground(2400, 700)
+        val pan = PanEstimator()
+        // The phone's view (960 x 540) moves over the ground: right, right faster, still, back left, down a little.
+        val at = listOf(100 to 60, 130 to 60, 205 to 60, 205 to 60, 160 to 60, 160 to 84, 80 to 84)
+        var sumX = 0.0
+        var sumY = 0.0
+        for ((i, p) in at.withIndex()) {
+            val s = pan.update(window(wide, p.first, p.second, 960, 540))
+            if (i == 0) {
+                assertTrue(!s.sure && s.dx == 0.0, "nothing to go on at the first frame")
+                continue
+            }
+            // The view moving right slides the scene left in the picture.
+            val wantX = -(p.first - at[i - 1].first) / 960.0
+            val wantY = -(p.second - at[i - 1].second) / 540.0
+            assertTrue(s.sure, "frame $i")
+            assertEquals(wantX, s.dx, 0.004, "frame $i across")
+            assertEquals(wantY, s.dy, 0.006, "frame $i up and down")
+            sumX += s.dx
+            sumY += s.dy
+        }
+        assertEquals(-(80 - 100) / 960.0, sumX, 0.01, "and they add up to where the phone ended")
+        assertEquals(-24 / 540.0, sumY, 0.012)
+        // A frame that doesn't fit (a hand across the lens) costs nothing: the next one fits the same key frame.
+        assertTrue(!pan.update(AwtFrame(ground(960, 540, seed = 77))).sure)
+        val after = pan.update(window(wide, 110, 84, 960, 540))
+        assertTrue(after.sure, "fits again")
+        assertEquals(-(110 - 80) / 960.0, after.dx, 0.004, "and the slide across the frame that didn't is all there")
+        // Pointed somewhere else altogether: the first frame there fits nothing, and the next, fitting it but
+        // not what went before, says the thread is lost. From there it follows again.
+        val there = (0 until 6).map { pan.update(window(wide, 1300, 84, 960, 540)) }
+        assertTrue(!there[0].sure && !there[0].lost)
+        assertTrue(there[1].lost)
+        assertTrue(there.drop(2).all { it.sure && !it.lost && it.dx == 0.0 }, "held still there: nothing added up")
+        // The light changing isn't movement.
+        val dim = java.awt.image.RescaleOp(0.8f, 12f, null).filter(wide.getSubimage(1300, 84, 960, 540), null)
+        val s = pan.update(AwtFrame(dim))
+        assertTrue(s.sure && kotlin.math.abs(s.dx) < 0.003 && kotlin.math.abs(s.dy) < 0.004, "${s.dx} ${s.dy} ${s.sure}")
+        // A fast pan, a fifth of the picture a frame, is still followed.
+        val fast = PanEstimator()
+        fast.update(window(wide, 100, 60, 960, 540))
+        var x = 100
+        var sum = 0.0
+        repeat(6) {
+            x += 190
+            val f = fast.update(window(wide, x, 60, 960, 540))
+            assertTrue(f.sure, "fast frame $it")
+            sum += f.dx
+        }
+        assertEquals(-6 * 190 / 960.0, sum, 0.02)
+
+        // A phone held still doesn't drift, however long.
+        val still = PanEstimator()
+        var drift = 0.0
+        repeat(200) { drift += still.update(window(wide, 400 + it % 2, 60, 960, 540)).dx }
+        assertTrue(kotlin.math.abs(drift) < 0.003, "drift $drift")
+        // A blank picture gives nothing to go on, and nothing to say the phone moved.
+        val blank = PanEstimator()
+        repeat(12) {
+            val b = blank.update(BlankFrame())
+            assertTrue(!b.sure && !b.lost)
+        }
     }
 }

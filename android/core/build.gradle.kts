@@ -24,6 +24,8 @@ dependencies {
 }
 
 tasks.test {
+    // Settings for replaying clips that aren't in the repository (see ClipsTest): -Dflockeyes.clips=DIR and so on.
+    System.getProperties().forEach { (k, v) -> if (k.toString().startsWith("flockeyes.")) systemProperty(k.toString(), v) }
     // The tests read the real models and the test photos from the repository (../../models, ../../tests).
     systemProperty("flockeyes.repo", rootProject.projectDir.parentFile.absolutePath)
     maxHeapSize = "2g"

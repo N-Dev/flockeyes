@@ -4,8 +4,9 @@
 #           "research" release, for trying ways of telling cows apart.
 #   videos  tools/find_videos.py: lists freely licensed videos of cows on Wikimedia Commons, with preview
 #           frames, on the research-ci branch.
-#   clips   tools/fetch_clips.py: downloads the videos named in tools/clips.json and packs frames of them
-#           as a file of the "research" release.
+#   clips   tools/fetch_clips.py: downloads the videos named in tools/clips.json (or the list given: "pans"
+#           are videos in which the camera is panned across cattle) and packs frames of them as a file of
+#           the "research" release.
 name: Research
 
 on:
@@ -15,6 +16,10 @@ on:
         description: 'pack, videos or clips'
         type: string
         default: videos
+      list:
+        description: 'clips: which list in tools/ (clips, or pans)'
+        type: string
+        default: clips
 
 permissions:
   contents: write
@@ -82,11 +87,11 @@ jobs:
         run: |
           set -o pipefail
           sudo apt-get install -y -qq ffmpeg > /dev/null 2>&1 || true
-          python tools/fetch_clips.py build/clips 2>&1 | tee ci-out/clips.log
+          python tools/fetch_clips.py build/clips "${{ inputs.list }}" 2>&1 | tee ci-out/clips.log
           ls -la build/clips || true
           cp build/clips/*.json build/clips/*.jpg ci-out/ 2>/dev/null || true
           gh release view research > /dev/null 2>&1 || gh release create research --prerelease --latest=false --title "Research files" --notes "Not an app release."
-          gh release upload research build/clips/clips.zip --clobber
+          gh release upload research "build/clips/${{ inputs.list }}.zip" --clobber
 
       - name: Publish the log (research-ci branch)
         if: always()

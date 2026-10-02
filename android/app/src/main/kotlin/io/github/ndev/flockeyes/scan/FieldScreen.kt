@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -66,6 +67,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.ndev.flockeyes.App
@@ -138,6 +140,11 @@ fun FieldScreen(onVideo: () -> Unit = {}) {
         }
     }
 
+    // Turned too fast for the app to follow: cows it comes back to would be counted again.
+    LaunchedEffect(ui.swings) {
+        if (ui.running && ui.swings > 0) snack.showSnackbar("Turned too fast to follow. Pan slowly: cows you go back over now may be counted twice.")
+    }
+
     BackHandler(enabled = ui.running) {
         scope.launch { snack.showSnackbar("Tap Finish to save the count, or Discard") }
     }
@@ -180,7 +187,7 @@ fun FieldScreen(onVideo: () -> Unit = {}) {
                         },
                     ) {
                         CameraPreview(Modifier.fillMaxSize(), use, zoom)
-                        CowOverlay(ui.boxes, ui.raw, aspect, ui.roi, prefs.debug, Modifier.fillMaxSize())
+                        CowOverlay(ui.boxes, ui.raw, aspect, ui.roi, prefs.debug, Modifier.fillMaxSize(), places = ui.places)
                     }
                 }
                 Column(Modifier.fillMaxWidth().statusBarsPadding()) {
@@ -264,15 +271,17 @@ fun FieldScreen(onVideo: () -> Unit = {}) {
                             Pill(if (last.fresh) "New: ${last.label}" else last.label, color = if (last.fresh) C.amber else C.text, modifier = Modifier.padding(bottom = 10.dp))
                         }
                     }
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Mini("${ui.inView}", "in view now", Modifier.weight(1f))
-                        Mini(if (ui.running) "${ui.peak}" else "–", "most at once", Modifier.weight(1f))
-                        Mini(if (ui.running) "${ui.fresh}" else "–", "new", Modifier.weight(1f))
-                        Mini(if (ui.running && herdSize > 0) "${missing.size}" else "–", "not seen yet", Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Mini("${ui.inView}", "in view", Modifier.weight(1f).fillMaxHeight())
+                        Mini(if (ui.running) "${ui.named}" else "–", "known by markings", Modifier.weight(1f).fillMaxHeight())
+                        Mini(if (ui.running) "${ui.fresh}" else "–", "new", Modifier.weight(1f).fillMaxHeight())
+                        Mini(if (ui.running && herdSize > 0) "${missing.size}" else "–", "not seen yet", Modifier.weight(1f).fillMaxHeight())
                     }
                     if (ui.running && ui.count > ui.named + ui.unknown) {
                         Text(
-                            "${ui.named} told apart; ${ui.peak} were in view at once, so there are at least ${ui.peak}. Cows too far away or hidden can’t be named: zoom in or move closer.",
+                            (if (ui.named > 0) "${ui.named} known by their markings; the others are" else "They are") +
+                                " counted by where they stand: too far off, hidden or too close together to tell apart. " +
+                                "Stay in one spot and pan slowly, so each is counted once. The most in view at once was ${ui.peak}.",
                             color = C.muted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 8.dp),
                         )
                     }
@@ -361,7 +370,7 @@ private fun Mini(value: String, label: String, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(value, color = C.text, fontSize = 20.sp, fontWeight = FontWeight.Bold, style = TNUM)
-        Text(label, color = C.muted, fontSize = 11.sp, maxLines = 1)
+        Text(label, color = C.muted, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 
@@ -382,8 +391,9 @@ private fun Intro(onDismiss: () -> Unit) {
     ) {
         Text("How it counts and tells cows apart", color = C.text, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Start a count and hold the phone on the cows. The count is the cows in view, plus any it has told apart that have wandered out of " +
-                "the picture. For a herd on the move, use the Gate tab.\n\n" +
+            "Start a count, stand in one spot and pan slowly across the field. Each cow is counted once, by where it stands, however often " +
+                "the phone passes over it; cows it has told apart by their markings are counted once wherever they wander. For a herd on the " +
+                "move, use the Gate tab.\n\n" +
                 "It tells cows apart by the markings on their sides, so it only learns a cow that is big enough in the picture (zoom in), side-on " +
                 "and standing clear of the others. A cow’s two sides are marked differently: it knows both once it has watched the cow turn " +
                 "round; if one is learnt twice, merge the two in the Herd tab.",

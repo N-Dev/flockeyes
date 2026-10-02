@@ -105,7 +105,7 @@ class Replay(
     fun summary(): String {
         val s = scan.session
         val bar = scan.bars()
-        return "count ${s.count} (named ${s.seen.size}, learnt ${s.fresh.size}, unrecognised ${s.unknown}, most in view ${s.peak}); herd ${herd.size}; " +
+        return "count ${s.count} (named ${s.seen.size}, learnt ${s.fresh.size}, unrecognised ${s.unknown}, most in view ${s.peak}, by place ${s.placed}); herd ${herd.size}; " +
             "$frames frames, $looks looks; " + (if (herd.tuning != null) "tuned" else "not tuned") + ", bars %.2f/%.2f clear %.2f".format(bar.match, bar.fresh, bar.margin)
     }
 
@@ -137,8 +137,21 @@ class Replay(
             g.color = Color.WHITE
             g.drawString(text, x + 4, ty)
         }
+        // The places cows have been counted at, where they'd be in this picture.
+        g.stroke = BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, floatArrayOf(6f, 5f), 0f)
+        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 13)
+        for (p in scan.placesInPicture()) {
+            val x = (p.box[0] * img.width).toInt()
+            val y = (p.box[1] * img.height).toInt()
+            val w = ((p.box[2] - p.box[0]) * img.width).toInt()
+            val h = ((p.box[3] - p.box[1]) * img.height).toInt()
+            g.color = if (p.counts) Color.WHITE else Color(0xFF, 0x8A, 0x80)
+            g.drawRect(x, y, w, h)
+            g.drawString("p${p.id}" + (if (p.label.isEmpty()) "" else " " + p.label), x + 3, y + h - 4)
+        }
+        g.font = Font(Font.SANS_SERIF, Font.BOLD, 18)
         val s = scan.session
-        val line = "frame $frames  found $found  in view ${shown.size}  count ${s.count}  herd ${herd.size}"
+        val line = "frame $frames  found $found  in view ${shown.size}  count ${s.count}  herd ${herd.size}  pan %.2f".format(scan.panX)
         g.color = Color(0, 0, 0, 170)
         g.fillRect(0, 0, g.fontMetrics.stringWidth(line) + 16, 28)
         g.color = Color.WHITE
@@ -147,3 +160,47 @@ class Replay(
         ImageIO.write(out, "jpg", to)
     }
 }
+
+/**
+ * A phone panned across a scene wider than its view: a window `width` of the frame wide (and as much of its
+ * height, from `top` down) is slid across the frames of a video that takes in the whole scene, each step
+ * on the video's next frame. The cows move as cows do; the phone's turning is the window's sliding.
+ */
+class Sweep(private val replay: Replay, private val frames: List<File>, private val width: Double = 0.5, private val top: Double = 0.3) {
+    /** The window's left edge, in frame widths, and how far the phone has then turned, in picture widths. */
+    var x = 0.0
+        private set
+    val turned: Double get() = x / width
+    private var at = 0
+    private var step = 1
+
+    /** The furthest the window can go. */
+    val end: Double get() = 1.0 - width
+
+    private fun shot() {
+        val img = ImageIO.read(frames[at])
+        // Out of frames: back through them, so nothing jumps.
+        if (at + step < 0 || at + step >= frames.size) step = -step
+        at += step
+        val w = (img.width * width).toInt()
+        val h = (img.height * width).toInt()
+        val px = (x * img.width).toInt().coerceIn(0, img.width - w)
+        val py = (top * img.height).toInt().coerceIn(0, img.height - h)
+        val win = BufferedImage(w, h, BufferedImage.TYPE_INT_RGB)
+        val g = win.createGraphics()
+        g.drawImage(img.getSubimage(px, py, w, h), 0, 0, null)
+        g.dispose()
+        replay.frame(win)
+    }
+
+    fun stay(n: Int) = repeat(n) { shot() }
+
+    /** Pans to `to`, `speed` of the picture's width a frame. */
+    fun to(to: Double, speed: Double = 0.07) {
+        while (kotlin.math.abs(x - to) > 1e-9) {
+            x += (to - x).coerceIn(-speed * width, speed * width)
+            shot()
+        }
+    }
+}
+

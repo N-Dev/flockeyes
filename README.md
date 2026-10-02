@@ -6,9 +6,9 @@ Counts dairy cows and recognises each one again, on the phone. Nothing is upload
 <https://github.com/N-Dev/flockeyes/releases/latest/download/FlockEyes.apk> on the phone, allow your browser to
 install unknown apps when Android asks (once), and tap Install.
 
-- **Field count:** tap Start and hold the phone on the cows. You get how many are in view, and each cow
-  standing clear of the others is learnt, or named if the app knows it, so that it isn't counted twice
-  when it wanders out of the picture and back.
+- **Field count:** tap Start, stand in one spot and pan slowly across the field. Each cow is counted once,
+  by where it stands, however often the phone passes over it; and each cow standing clear of the others is
+  learnt, or named if the app knows it, so that it is still counted once when it wanders.
 - **Gate count:** fix the phone at a gap, a gateway or the way out of the parlour, draw a line across it,
   and cows are counted each way as they cross and named as they pass. This is the one to use for a herd
   on the move, and where recognition has the best chance: one cow at a time, close, side-on.
@@ -23,8 +23,13 @@ install unknown apps when Android asks (once), and tap Install.
 Counting is the dependable part; recognising is harder, and how well it does on your herd is for you to
 find out (debug mode shows its working).
 
-- **It counts what it can see at once, plus cows it has told apart.** A herd that fills more than one
-  screenful and stands close together is undercounted in a field count: bring them past a gate count.
+- **A field count goes by where the cows stand.** The app works out how the phone is being turned from
+  the pictures themselves, so a cow keeps its place however you pan, and cows too far off or too close
+  together to tell apart are still counted one by one. On videos of cattle standing apart it was right or
+  one out; tight bunches came out a quarter to a third short (a cow hidden behind another can't be
+  counted); and the one video filmed while walking came out half as much again too high. So: stay in one
+  spot, pan slowly (it says so if you turn too fast), and for a herd on the move or bunched tight, bring
+  them past a gate count. What was measured is in [docs/counting.md](docs/counting.md).
 - **It tells cows apart by the markings on their sides**, so it needs them side-on, big in the picture and
   standing clear. Cows bunched together are counted but not named.
 - **A cow followed without a break keeps its name**, and the app learns what it looks like as it moves.
@@ -45,7 +50,7 @@ find out (debug mode shows its working).
 | `models/` | The cow finder (YOLOX, Apache 2.0), the recognition model (MegaDescriptor, **CC BY-NC 4.0: non-commercial only**) and its tuning, with their licences. |
 | `tools/` | Fetch the recognition model, export it for the phone, make its tuning and measure it; run by the *Models* workflow. |
 | `tests/assets/` | Test pictures: frames of real videos of cows, and barn photos. Where each came from is in the README there. |
-| `docs/` | The measurements. |
+| `docs/` | The measurements: [counting](docs/counting.md) and [recognition](docs/recognition.md). |
 | `web/` | The first, simpler version, for a browser. |
 
 Because of the recognition model's licence, the app is for your own use and can't be sold.

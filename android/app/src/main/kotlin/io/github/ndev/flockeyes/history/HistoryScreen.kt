@@ -219,13 +219,13 @@ private fun CountScreen(c: CountInfo, onClose: () -> Unit) {
                 } else {
                     val named = sightings.count { it.cowId != null }
                     Text(
-                        "$named told apart" + (if (c.unknown > 0) ", ${c.unknown} not recognised" else "") + " · most in view at once ${c.peak}" +
+                        "$named known by their markings" + (if (c.unknown > 0) ", ${c.unknown} not recognised" else "") + " · most in view at once ${c.peak}" +
                             (if (c.fresh > 0) " · ${c.fresh} learnt as new" else ""),
                         color = C.text, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp),
                     )
                     if (c.count > named + c.unknown) {
                         Text(
-                            "More cows were in view at once than were told apart, so the count is the number in view. Some were too far away or hidden to recognise.",
+                            "The others were counted by where they stood: too far off, hidden or too close together to tell apart by their markings.",
                             color = C.muted, fontSize = 12.5.sp, modifier = Modifier.padding(top = 4.dp),
                         )
                     }
