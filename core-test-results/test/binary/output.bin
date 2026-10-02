@@ -1,0 +1,17 @@
+V  cow_a1: plain 1.00 0.72 0.22 0.22 0.11 0.10   tuned 1.00 0.68 0.00 0.02 -0.02 -0.03
+T  cow_a2: plain 0.72 1.00 0.15 0.14 0.05 0.05   tuned 0.68 1.00 0.04 0.07 0.04 0.01
+T  cow_c1: plain 0.22 0.15 1.00 0.91 0.31 0.33   tuned 0.00 0.04 1.00 0.93 0.29 0.30
+T  cow_c2: plain 0.22 0.14 0.91 1.00 0.36 0.39   tuned 0.02 0.07 0.93 1.00 0.34 0.34
+U  cow_d1: plain 0.11 0.05 0.31 0.36 1.00 0.98   tuned -0.02 0.04 0.29 0.34 1.00 0.96
+U  cow_d2: plain 0.10 0.05 0.33 0.39 0.98 1.00   tuned -0.03 0.01 0.30 0.34 0.96 1.00
+ê  first: count 3 (named 2, learnt 2, unrecognised 0, most in view 3, by place 3); herd 2; 38 frames, 14 looks; tuned, bars 0.55/0.42 clear 0.12
+ê  again: count 3 (named 2, learnt 0, unrecognised 0, most in view 3, by place 3); herd 2; 38 frames, 11 looks; tuned, bars 0.55/0.42 clear 0.12
+œ  gate: [cow 1 dir 1 1.00 new, cow 2 dir 2 1.00 new, cow 1 dir 2 0.80]; count 3 (named 0, learnt 2, unrecognised 0, most in view 0, by place 0); herd 2; 69 frames, 14 looks; tuned, bars 0.55/0.42 clear 0.12
+	Q  far detail: 14 boxes (whole frame at once: 12); 12 of 12 clear cows boxed once
+
+œ  panned: across 7, back 7, across again 7; count 7 (named 2, learnt 2, unrecognised 0, most in view 6, by place 7); herd 2; 69 frames, 6 looks; tuned, bars 0.55/0.42 clear 0.12; turned 0.999 (really 1.000)
+M  agreement with Python, photo by photo: 0.993 0.988 0.992 0.994 0.990 0.992
+O  the same box as Python in 22 of 24 photos; the light model finds a cow in 18
+Ü  nearest look is the same cow: plain 55 of 144, tuned 144; tuned: two looks of one cow 0.75 alike on average, of different cows 0.06
+$T  through the tuning: 20 of 20 named right the second time, 0 learnt again, herd 20
+$G  plain: 4 of 20 named right the second time, 11 learnt again, herd 31

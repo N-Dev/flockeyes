@@ -1,0 +1,108 @@
+10-02 11:59:42.697 D/AndroidRuntime( 3023): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-02 11:59:42.703 I/AndroidRuntime( 3023): Using default boot image
+10-02 11:59:42.703 I/AndroidRuntime( 3023): Leaving lock profiling enabled
+10-02 11:59:43.279 D/AndroidRuntime( 3023): Calling main entry com.android.commands.am.Am
+10-02 11:59:46.205 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 11:59:47.668 I/FlockEyes( 3191): [engine] Loaded the cow finder (standard) (detTiny) with CPU, 4 threads in 1132 ms
+10-02 11:59:47.849 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 1
+10-02 11:59:48.048 I/FlockEyes( 3191): [update] Up to date (1.0.6)
+10-02 11:59:48.187 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 2
+10-02 11:59:48.346 I/FlockEyes( 3191): [herd] Herd loaded: 2 cows, 3 looks
+10-02 11:59:48.375 I/FlockEyes( 3191): [herd] Merged cow 2 into Daisy (1)
+10-02 11:59:48.391 I/FlockEyes( 3191): [herd] Herd loaded: 1 cows, 3 looks
+10-02 11:59:48.467 I/FlockEyes( 3191): [engine] Speed test started
+10-02 11:59:48.986 I/FlockEyes( 3191): [engine] Loaded the cow recogniser (reid) with CPU, 4 threads in 983 ms
+10-02 12:00:38.330 I/FlockEyes( 3191): [engine] Speed test finished: detNano CPU:2 97 ms, detNano CPU:4 159 ms, detNano XNNPACK:4 1015 ms, detNano NNAPI:4 297 ms, detTiny CPU:2 160 ms, detTiny CPU:4 73 ms, detTiny XNNPACK:4 76 ms, detTiny NNAPI:4 490 ms, reid CPU:2 183 ms, reid CPU:4 131 ms, reid XNNPACK:4 373 ms, reid NNAPI:4 1846 ms
+10-02 12:00:38.333 I/FlockEyesTest( 3191): speed test: detNano on CPU, 2 threads: 97 ms
+10-02 12:00:38.338 I/FlockEyesTest( 3191): speed test: detNano on CPU, 4 threads: 159 ms
+10-02 12:00:38.338 I/FlockEyesTest( 3191): speed test: detNano on XNNPACK, 4 threads: 1015 ms
+10-02 12:00:38.339 I/FlockEyesTest( 3191): speed test: detNano on NNAPI: 297 ms
+10-02 12:00:38.339 I/FlockEyesTest( 3191): speed test: detTiny on CPU, 2 threads: 160 ms
+10-02 12:00:38.340 I/FlockEyesTest( 3191): speed test: detTiny on CPU, 4 threads: 73 ms
+10-02 12:00:38.340 I/FlockEyesTest( 3191): speed test: detTiny on XNNPACK, 4 threads: 76 ms
+10-02 12:00:38.340 I/FlockEyesTest( 3191): speed test: detTiny on NNAPI: 490 ms
+10-02 12:00:38.342 I/FlockEyesTest( 3191): speed test: reid on CPU, 2 threads: 183 ms
+10-02 12:00:38.342 I/FlockEyesTest( 3191): speed test: reid on CPU, 4 threads: 131 ms
+10-02 12:00:38.343 I/FlockEyesTest( 3191): speed test: reid on XNNPACK, 4 threads: 373 ms
+10-02 12:00:38.343 I/FlockEyesTest( 3191): speed test: reid on NNAPI: 1846 ms
+10-02 12:00:40.258 I/FlockEyesTest( 3191): detTiny: a cow found in 6 of 6 test pictures · AI 160 ms (CPU, 4 threads)
+10-02 12:00:40.427 I/FlockEyes( 3191): [engine] Loaded the cow finder (light) (detNano) with CPU, 4 threads in 137 ms
+10-02 12:00:41.237 I/FlockEyesTest( 3191): detNano: a cow found in 6 of 6 test pictures · AI 39 ms (CPU, 4 threads)
+10-02 12:00:41.504 I/FlockEyesTest( 3191): a video frame: 3 cows found, scores [0.91, 0.90, 0.82]
+10-02 12:00:42.099 I/FlockEyesTest( 3191): detTiny on CPU, 2 threads: ran in 263 ms
+10-02 12:00:42.522 I/FlockEyesTest( 3191): detTiny on XNNPACK, 2 threads: ran in 231 ms
+10-02 12:00:43.300 I/FlockEyesTest( 3191): detTiny on NNAPI: ran in 526 ms
+10-02 12:00:43.820 I/FlockEyesTest( 3191): reid on CPU, 2 threads: ran in 180 ms
+10-02 12:00:44.274 I/FlockEyesTest( 3191): reid on XNNPACK, 2 threads: ran in 252 ms
+10-02 12:00:46.044 I/FlockEyesTest( 3191): reid on NNAPI: ran in 781 ms
+10-02 12:00:48.675 I/FlockEyesTest( 3191): recogniser (megadescriptor-t-224-int8-1, tuned): 181 ms a look (CPU, 4 threads); pictures of the same cow 0.85 alike on average (lowest 0.67), of different cows 0.12 (highest 0.35); same cow at 0.55
+10-02 12:00:48.760 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:00:54.194 I/FlockEyes( 3191): [gate] Count started (2); learning on, herd 0, same cow at 0.55 and 0.12 clear of the next
+10-02 12:01:02.973 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 3
+10-02 12:01:07.834 I/FlockEyesTest( 3191): gate after one cow: 1 out, 0 in; herd 1
+10-02 12:01:13.379 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 4
+10-02 12:01:22.607 I/FlockEyes( 3191): [gate] Count stopped (2): 3
+10-02 12:01:22.608 I/FlockEyesTest( 3191): gate: 1 out, 2 in; [cow 3 dir 1 new, cow 4 dir 2 new, cow 3 dir 2 0.79]
+10-02 12:01:25.265 I/FlockEyesTest( 3191): screenshot 14-gate-count
+10-02 12:01:26.101 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:01:26.627 I/FlockEyes( 3191): [camera] Camera set up for field, asking for 1920x1080
+10-02 12:01:27.263 I/FlockEyes( 3191): [camera] Camera set up for gate, asking for 1280x720
+10-02 12:01:27.999 I/FlockEyes( 3191): [gate] Count started (3); learning on, herd 0, same cow at 0.55 and 0.12 clear of the next
+10-02 12:01:28.032 I/FlockEyes( 3191): [background] Counting at the gate in the background
+10-02 12:01:29.630 I/FlockEyesTest( 3191): screenshot 15-gate-counting
+10-02 12:01:32.296 I/FlockEyesTest( 3191): screenshot 16-gate-dimmed
+10-02 12:01:41.385 I/FlockEyesTest( 3191): background: 75 frames analysed in 6 s with the app in the background
+10-02 12:01:43.195 I/FlockEyes( 3191): [gate] Count stopped (3): 0
+10-02 12:01:43.218 I/FlockEyes( 3191): [background] Stopped running in the background
+10-02 12:01:43.728 I/FlockEyesTest( 3191): screenshot 17-gate-stopped
+10-02 12:01:44.286 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:01:44.669 I/FlockEyes( 3191): [camera] Camera set up for field, asking for 1920x1080
+10-02 12:01:48.124 I/FlockEyesTest( 3191): screenshot 30-video
+10-02 12:01:48.178 I/FlockEyes( 3191): [video] Counting a video: 960x540, 15 s, detTiny
+10-02 12:01:50.346 I/FlockEyesTest( 3191): screenshot 31-video-counting
+10-02 12:01:50.574 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 5
+10-02 12:01:50.909 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 6
+10-02 12:02:05.068 I/FlockEyes( 3191): [video] Video counted: 3 cows (2 known by their markings, 2 new, 3 by where they stood, most at once 3) in 76 frames, 17 s (count 4)
+10-02 12:02:06.673 I/FlockEyesTest( 3191): screenshot 32-video-done
+10-02 12:02:06.674 I/FlockEyesTest( 3191): video count: 3 counted, 2 new, most in view 3; herd 2; Video counted: 3 cows (2 known by their markings, 2 new, 3 by where they stood, most at once 3) in 76 frames, 17 s (count 4)
+10-02 12:02:09.032 I/FlockEyesTest( 3191): screenshot 33-video-count
+10-02 12:02:09.431 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:02:13.159 I/FlockEyes( 3191): [field] Count started (5); learning on, herd 0, same cow at 0.55 and 0.12 clear of the next
+10-02 12:02:14.471 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 7
+10-02 12:02:14.727 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 8
+10-02 12:02:18.865 I/FlockEyesTest( 3191): field count 1: 3 counted, 2 named, 2 new, most in view 3; finder 58 ms, look 146 ms
+10-02 12:02:18.869 I/FlockEyes( 3191): [field] Count stopped (5): 3
+10-02 12:02:19.173 I/FlockEyes( 3191): [field] Count started (6); learning on, herd 2, same cow at 0.55 and 0.12 clear of the next
+10-02 12:02:24.009 I/FlockEyesTest( 3191): field count 2: 3 counted, 2 named, 0 new; boxes [Cow 7 1.00, Cow 8 1.00,  0.00]
+10-02 12:02:24.014 I/FlockEyes( 3191): [field] Count stopped (6): 3
+10-02 12:02:26.847 I/FlockEyesTest( 3191): screenshot 10-herd
+10-02 12:02:29.628 I/FlockEyesTest( 3191): screenshot 11-cow
+10-02 12:02:31.412 I/FlockEyesTest( 3191): screenshot 12-counts
+10-02 12:02:33.563 I/FlockEyesTest( 3191): screenshot 13-count
+10-02 12:02:34.018 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:02:35.239 I/FlockEyes( 3191): [herd] Learnt a new cow: Cow 9
+10-02 12:02:35.319 I/FlockEyes( 3191): [backup] Backed up: 1 cow in the herd, 1 count
+10-02 12:02:35.321 I/FlockEyesTest( 3191): backup: 2629 bytes
+10-02 12:02:35.436 I/FlockEyesTest( 3191): backup holds: 1 cow in the herd, 1 count
+10-02 12:02:35.453 I/FlockEyes( 3191): [herd] Herd loaded: 1 cows, 1 looks
+10-02 12:02:35.454 I/FlockEyes( 3191): [backup] Restored a backup from 1.0.7: 1 cow in the herd, 1 count
+10-02 12:02:37.100 I/FlockEyesTest( 3191): screenshot 24-settings-backup
+10-02 12:02:37.539 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:02:44.062 I/FlockEyesTest( 3191): screenshot 01-field
+10-02 12:02:44.212 I/FlockEyes( 3191): [camera] Camera set up for gate, asking for 1280x720
+10-02 12:02:49.469 I/FlockEyesTest( 3191): screenshot 02-gate
+10-02 12:02:51.262 I/FlockEyesTest( 3191): screenshot 03-gate-setup
+10-02 12:02:53.122 I/FlockEyesTest( 3191): screenshot 04-herd-empty
+10-02 12:02:54.761 I/FlockEyesTest( 3191): screenshot 05-counts-empty
+10-02 12:02:56.537 I/FlockEyesTest( 3191): screenshot 06-settings
+10-02 12:02:56.951 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:02:57.162 I/FlockEyes( 3191): [camera] Camera set up for field, asking for 1920x1080
+10-02 12:03:00.662 I/FlockEyesTest( 3191): screenshot 20-debug-field
+10-02 12:03:00.820 I/FlockEyes( 3191): [camera] Camera set up for gate, asking for 1280x720
+10-02 12:03:04.115 I/FlockEyesTest( 3191): screenshot 21-debug-gate
+10-02 12:03:06.174 I/FlockEyesTest( 3191): screenshot 22-debug-settings
+10-02 12:03:07.849 I/FlockEyesTest( 3191): screenshot 23-debug-log
+10-02 12:03:08.501 I/FlockEyes( 3191): [herd] Herd loaded: 0 cows, 0 looks
+10-02 12:03:08.697 I/FlockEyes( 3191): [camera] Camera set up for field, asking for 1920x1080
+10-02 12:03:11.100 I/FlockEyesTest( 3191): screenshot 25-speed-offer
+10-02 12:03:11.765 I/AndroidRuntime( 3023): VM exiting with result code 0.

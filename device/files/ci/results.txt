@@ -1,0 +1,54 @@
+speed test: detNano on CPU, 2 threads: 97 ms
+speed test: detNano on CPU, 4 threads: 159 ms
+speed test: detNano on XNNPACK, 4 threads: 1015 ms
+speed test: detNano on NNAPI: 297 ms
+speed test: detTiny on CPU, 2 threads: 160 ms
+speed test: detTiny on CPU, 4 threads: 73 ms
+speed test: detTiny on XNNPACK, 4 threads: 76 ms
+speed test: detTiny on NNAPI: 490 ms
+speed test: reid on CPU, 2 threads: 183 ms
+speed test: reid on CPU, 4 threads: 131 ms
+speed test: reid on XNNPACK, 4 threads: 373 ms
+speed test: reid on NNAPI: 1846 ms
+detTiny: a cow found in 6 of 6 test pictures · AI 160 ms (CPU, 4 threads)
+detNano: a cow found in 6 of 6 test pictures · AI 39 ms (CPU, 4 threads)
+a video frame: 3 cows found, scores [0.91, 0.90, 0.82]
+detTiny on CPU, 2 threads: ran in 263 ms
+detTiny on XNNPACK, 2 threads: ran in 231 ms
+detTiny on NNAPI: ran in 526 ms
+reid on CPU, 2 threads: ran in 180 ms
+reid on XNNPACK, 2 threads: ran in 252 ms
+reid on NNAPI: ran in 781 ms
+recogniser (megadescriptor-t-224-int8-1, tuned): 181 ms a look (CPU, 4 threads); pictures of the same cow 0.85 alike on average (lowest 0.67), of different cows 0.12 (highest 0.35); same cow at 0.55
+gate after one cow: 1 out, 0 in; herd 1
+gate: 1 out, 2 in; [cow 3 dir 1 new, cow 4 dir 2 new, cow 3 dir 2 0.79]
+screenshot 14-gate-count
+screenshot 15-gate-counting
+screenshot 16-gate-dimmed
+background: 75 frames analysed in 6 s with the app in the background
+screenshot 17-gate-stopped
+screenshot 30-video
+screenshot 31-video-counting
+screenshot 32-video-done
+video count: 3 counted, 2 new, most in view 3; herd 2; Video counted: 3 cows (2 known by their markings, 2 new, 3 by where they stood, most at once 3) in 76 frames, 17 s (count 4)
+screenshot 33-video-count
+field count 1: 3 counted, 2 named, 2 new, most in view 3; finder 58 ms, look 146 ms
+field count 2: 3 counted, 2 named, 0 new; boxes [Cow 7 1.00, Cow 8 1.00,  0.00]
+screenshot 10-herd
+screenshot 11-cow
+screenshot 12-counts
+screenshot 13-count
+backup: 2629 bytes
+backup holds: 1 cow in the herd, 1 count
+screenshot 24-settings-backup
+screenshot 01-field
+screenshot 02-gate
+screenshot 03-gate-setup
+screenshot 04-herd-empty
+screenshot 05-counts-empty
+screenshot 06-settings
+screenshot 20-debug-field
+screenshot 21-debug-gate
+screenshot 22-debug-settings
+screenshot 23-debug-log
+screenshot 25-speed-offer
