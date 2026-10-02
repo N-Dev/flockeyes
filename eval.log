@@ -1,0 +1,59 @@
+the photos are already here
+pictures: 3711 sizes: [((320, 240), 2474), ((640, 480), 1237)] kinds by name: {'rgb': 1237, 'rgb-part': 1237, 'thermal': 1237}
+   subset1/subset1/0089/FLIR1503- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR1503- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR1503.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR2019- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR2019- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR2019.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR2501- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR2501- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR2501.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR2502- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR2502- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR2502.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR3017- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR3017- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR3017.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR3549- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR3549- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR3549.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR4114- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR4114- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR4114.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR4115- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR4115- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR4115.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR4667- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR4667- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR4667.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR5283- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR5283- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR5283.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR5820- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR5820- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR5820.jpg 320x240 thermal
+   subset1/subset1/0089/FLIR5821- full photo.jpg 640x480 rgb
+   subset1/subset1/0089/FLIR5821- photo.jpg 320x240 rgb-part
+   subset1/subset1/0089/FLIR5821.jpg 320x240 thermal
+   subset1/subset1/0091/FLIR1702- full photo.jpg 640x480 rgb
+   subset1/subset1/0091/FLIR1702- photo.jpg 320x240 rgb-part
+   subset1/subset1/0091/FLIR1702.jpg 320x240 thermal
+   subset1/subset1/0091/FLIR2220- full photo.jpg 640x480 rgb
+RGB photos (named rgb): 1237 of 136 cows; per cow min 6 mean 9.1 max 14
+first cows: ['subset1/0089', 'subset1/0091', 'subset1/0098', 'subset1/0099', 'subset1/0103', 'subset1/0146', 'subset1/0151', 'subset1/0152']
+cow finder: a cow boxed in 1192 of 1237 photos
+colour scaling 'half': top-1 0.334
+colour scaling 'imagenet': top-1 0.322
+using colour scaling: half
+fp32: top-1 0.334; 57 ms a photo
+int8: top-1 0.335; 29 ms a photo
+8-bit against full on the photos: mean cosine 0.9795
+tuning: 64 directions from 1237 barn and 261 field looks
+barn, plain: top-1 0.335; a moment later {'right': 0.0847457627118644, 'wrong': 0.0, 'unnamed': 0.9152542372881356, 'stranger_named': 0.0, 'own_mean': 0.8981801824877871, 'other_best_mean': 0.8447189245173946, 'looks': 413}; another day {'right': 0.0017953321364452424, 'wrong': 0.0, 'unnamed': 0.9982046678635548, 'stranger_named': 0.0017953321364452424, 'own_mean': 0.8062644282898572, 'other_best_mean': 0.8580163629647657, 'looks': 557}
+barn, tuned: top-1 0.470; a moment later {'right': 0.6537530266343826, 'wrong': 0.0, 'unnamed': 0.34624697336561744, 'stranger_named': 0.012106537530266344, 'own_mean': 0.7459616039139806, 'other_best_mean': 0.5879901924359341, 'looks': 413}; another day {'right': 0.04488330341113106, 'wrong': 0.005385996409335727, 'unnamed': 0.9497307001795332, 'stranger_named': 0.01436265709156194, 'own_mean': 0.5865011924780134, 'other_best_mean': 0.605345952323034, 'looks': 557}
+field, plain: {'same_pairs': 1507, 'other_pairs': 111, 'same_mean': 0.8592652803244549, 'same_p05': 0.6223669219624465, 'other_mean': 0.3890049594509687, 'other_p95': 0.6805015675020325, 'same_over': 0.9840743198407432, 'other_over': 0.25225225225225223, 'auc': 0.9830281509113626}
+field, tuned: {'same_pairs': 1507, 'other_pairs': 111, 'same_mean': 0.8286113720124155, 'same_p05': 0.5437381845256205, 'other_mean': 0.3160186849390494, 'other_p95': 0.5221994434870434, 'same_over': 0.9442601194426012, 'other_over': 0.02702702702702703, 'auc': 0.9925333428983064}
+ships: int8 {"key": "megadescriptor-t-224-int8-1", "name": "MegaDescriptor-T-224", "licence": "CC BY-NC 4.0 (non-commercial)", "source": "https://huggingface.co/BVRA/MegaDescriptor-T-224", "size": 224, "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5], "dim": 768, "match": 0.55, "fresh": 0.42, "margin": 0.12, "tuning": "cow-tuning.bin", "notes": "The bars are for looks seen through the tuning (tools/make_tuning.py); what they achieve is in docs/recognition.md."}
+test photos: 8 cows
+wrote docs/recognition.md

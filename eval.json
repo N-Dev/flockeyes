@@ -1,0 +1,172 @@
+{
+ "photos": 1237,
+ "cows": 136,
+ "boxed": 1192,
+ "how_rgb": "named rgb",
+ "agree_int8_fp32": 0.9795137047767639,
+ "colour_scaling": "half",
+ "colour_scaling_top1": {
+  "half": 0.33387227162489896,
+  "imagenet": 0.3217461600646726
+ },
+ "ships": "int8",
+ "config": {
+  "key": "megadescriptor-t-224-int8-1",
+  "name": "MegaDescriptor-T-224",
+  "licence": "CC BY-NC 4.0 (non-commercial)",
+  "source": "https://huggingface.co/BVRA/MegaDescriptor-T-224",
+  "size": 224,
+  "mean": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "std": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "dim": 768,
+  "match": 0.55,
+  "fresh": 0.42,
+  "margin": 0.12,
+  "tuning": "cow-tuning.bin",
+  "notes": "The bars are for looks seen through the tuning (tools/make_tuning.py); what they achieve is in docs/recognition.md."
+ },
+ "results": {
+  "fp32": {
+   "top1": 0.33387227162489896,
+   "ms_per_photo": 56.81212081384929
+  },
+  "int8": {
+   "top1": 0.3354890864995958,
+   "ms_per_photo": 28.577056736741802
+  }
+ },
+ "barn": {
+  "plain": {
+   "top1": 0.3354890864995958,
+   "moment": {
+    "right": 0.0847457627118644,
+    "wrong": 0.0,
+    "unnamed": 0.9152542372881356,
+    "stranger_named": 0.0,
+    "own_mean": 0.8981801824877871,
+    "other_best_mean": 0.8447189245173946,
+    "looks": 413
+   },
+   "day": {
+    "right": 0.0017953321364452424,
+    "wrong": 0.0,
+    "unnamed": 0.9982046678635548,
+    "stranger_named": 0.0017953321364452424,
+    "own_mean": 0.8062644282898572,
+    "other_best_mean": 0.8580163629647657,
+    "looks": 557
+   }
+  },
+  "tuned": {
+   "top1": 0.47049312853678255,
+   "moment": {
+    "right": 0.6537530266343826,
+    "wrong": 0.0,
+    "unnamed": 0.34624697336561744,
+    "stranger_named": 0.012106537530266344,
+    "own_mean": 0.7459616039139806,
+    "other_best_mean": 0.5879901924359341,
+    "looks": 413
+   },
+   "day": {
+    "right": 0.04488330341113106,
+    "wrong": 0.005385996409335727,
+    "unnamed": 0.9497307001795332,
+    "stranger_named": 0.01436265709156194,
+    "own_mean": 0.5865011924780134,
+    "other_best_mean": 0.605345952323034,
+    "looks": 557
+   }
+  }
+ },
+ "field": {
+  "plain": {
+   "same_pairs": 1507,
+   "other_pairs": 111,
+   "same_mean": 0.8592652803244549,
+   "same_p05": 0.6223669219624465,
+   "other_mean": 0.3890049594509687,
+   "other_p95": 0.6805015675020325,
+   "same_over": 0.9840743198407432,
+   "other_over": 0.25225225225225223,
+   "auc": 0.9830281509113626
+  },
+  "tuned": {
+   "same_pairs": 1507,
+   "other_pairs": 111,
+   "same_mean": 0.8286113720124155,
+   "same_p05": 0.5437381845256205,
+   "other_mean": 0.3160186849390494,
+   "other_p95": 0.5221994434870434,
+   "same_over": 0.9442601194426012,
+   "other_over": 0.02702702702702703,
+   "auc": 0.9925333428983064
+  }
+ },
+ "tuning": {
+  "directions": 64,
+  "barn_looks": 1237,
+  "field_looks": 261
+ },
+ "export": {
+  "source": "hf-hub:BVRA/MegaDescriptor-T-224",
+  "architecture": "swin_tiny_patch4_window7_224",
+  "parameters": 27519354,
+  "dim": 768,
+  "size": 224,
+  "mean": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "std": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "fp32_bytes": 112792891,
+  "int8_bytes": 30208361,
+  "onnx_vs_torch_cosine": 0.9999999999999925,
+  "int8_vs_fp32_cosine_random": [
+   0.9833178207173406,
+   0.9863195781642184
+  ],
+  "ms_fp32_2threads": 56.764841079711914,
+  "ms_int8_2threads": 28.683980305989582,
+  "ops_int8": [
+   "Add",
+   "Cast",
+   "Concat",
+   "Conv",
+   "Div",
+   "DynamicQuantizeLinear",
+   "Erf",
+   "LayerNormalization",
+   "MatMul",
+   "MatMulInteger",
+   "Mul",
+   "Pad",
+   "ReduceMean",
+   "Reshape",
+   "Slice",
+   "Softmax",
+   "Split",
+   "Squeeze",
+   "Transpose"
+  ],
+  "versions": {
+   "torch": "2.5.1+cpu",
+   "timm": "1.0.12",
+   "onnx": "1.17.0",
+   "onnxruntime": "1.20.1"
+  }
+ }
+}

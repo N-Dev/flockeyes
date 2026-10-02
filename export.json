@@ -1,0 +1,53 @@
+{
+  "source": "hf-hub:BVRA/MegaDescriptor-T-224",
+  "architecture": "swin_tiny_patch4_window7_224",
+  "parameters": 27519354,
+  "dim": 768,
+  "size": 224,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "fp32_bytes": 112792891,
+  "int8_bytes": 30208361,
+  "onnx_vs_torch_cosine": 0.9999999999999925,
+  "int8_vs_fp32_cosine_random": [
+    0.9833178207173406,
+    0.9863195781642184
+  ],
+  "ms_fp32_2threads": 56.764841079711914,
+  "ms_int8_2threads": 28.683980305989582,
+  "ops_int8": [
+    "Add",
+    "Cast",
+    "Concat",
+    "Conv",
+    "Div",
+    "DynamicQuantizeLinear",
+    "Erf",
+    "LayerNormalization",
+    "MatMul",
+    "MatMulInteger",
+    "Mul",
+    "Pad",
+    "ReduceMean",
+    "Reshape",
+    "Slice",
+    "Softmax",
+    "Split",
+    "Squeeze",
+    "Transpose"
+  ],
+  "versions": {
+    "torch": "2.5.1+cpu",
+    "timm": "1.0.12",
+    "onnx": "1.17.0",
+    "onnxruntime": "1.20.1"
+  }
+}
