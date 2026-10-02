@@ -214,7 +214,10 @@ class ScreensTest {
             // Debug mode shows what the AI sees as it goes: each cow's box and scores, and the places counted.
             app.prefs.debug = true
             compose.onNodeWithText("Count the cows").performClick()
-            waitForText("so far", substring = true, timeoutMs = 60_000)
+            // Part-way through: cows have been found and counted.
+            compose.waitUntil(120_000) {
+                listOf("2 cows so far", "3 cows so far", "4 cows so far").any { compose.onAllNodesWithText(it, substring = true).fetchSemanticsNodes().isNotEmpty() }
+            }
             Shots.take("31-video-counting")
             waitForText("Done:", substring = true, timeoutMs = 600_000)
             app.prefs.debug = false
