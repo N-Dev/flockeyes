@@ -1,21 +1,26 @@
-# Packs the Holstein photos and candidate recognition models (with their inner outputs) as files of the
-# "research" release, so that ways of telling cows apart can be tried somewhere that can't reach
-# Hugging Face or the photo archive. See tools/research.py. Not part of building the app.
+# Research jobs, run by hand (not part of building the app). GitHub's machines can reach Hugging Face,
+# the photo archive and Wikimedia Commons; the workspace the app is written in can't.
+#   pack    tools/research.py: the Holstein photos and candidate recognition models as files of the
+#           "research" release, for trying ways of telling cows apart.
+#   videos  tools/find_videos.py: lists freely licensed videos of cows on Wikimedia Commons, with preview
+#           frames, on the research-ci branch.
+#   clips   tools/fetch_clips.py: downloads the videos named in tools/clips.json and packs frames of them
+#           as a file of the "research" release.
 name: Research
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'tools/research.py'
-      - '.github/workflows/research.yml'
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'pack, videos or clips'
+        type: string
+        default: videos
 
 permissions:
   contents: write
 
 concurrency:
-  group: research
+  group: research-${{ inputs.job }}
   cancel-in-progress: true
 
 defaults:
@@ -23,7 +28,7 @@ defaults:
     shell: bash
 
 jobs:
-  pack:
+  research:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -38,30 +43,50 @@ jobs:
           set -e -o pipefail
           mkdir -p ci-out
           python -m pip install --upgrade pip > /dev/null
-          pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
-          pip install timm==1.0.12 huggingface_hub==0.26.5 safetensors==0.4.5 onnx==1.17.0 onnxruntime==1.20.1 numpy==1.26.4 \
-            pillow opencv-python-headless==4.10.0.84 2>&1 | tail -1
+          if [ "${{ inputs.job }}" = "pack" ]; then
+            pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu 2>&1 | tail -1
+            pip install timm==1.0.12 huggingface_hub==0.26.5 safetensors==0.4.5 onnx==1.17.0 2>&1 | tail -1
+          fi
+          pip install onnxruntime==1.20.1 numpy==1.26.4 pillow opencv-python-headless==4.10.0.84 2>&1 | tail -1
 
       - uses: actions/cache@v4
+        if: inputs.job == 'pack'
         with:
           path: build/data
           key: holstein-photos-O1ZBSA-1
 
       - name: Pack the photos and export the models
-        run: |
-          set -o pipefail
-          python tools/research.py build/research build/data 2>&1 | tee ci-out/research.log
-
-      - name: Upload as the "research" release
-        if: always()
+        if: inputs.job == 'pack'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -o pipefail
+          python tools/research.py build/research build/data 2>&1 | tee ci-out/research.log
           ls -la build/research || true
           gh release delete research --yes --cleanup-tag 2>/dev/null || true
           gh release create research build/research/*.zip build/research/*.onnx build/research/research.json \
             --prerelease --latest=false --title "Research files" \
             --notes "For trying recognition methods (see tools/research.py). Not an app release. Photos: Holstein Cattle Recognition, CC0, https://doi.org/10.34894/O1ZBSA. Models exported to ONNX: DINOv2 (Apache 2.0), XFeat (Apache 2.0), MegaDescriptor (CC BY-NC 4.0, non-commercial)."
+          cp build/research/research.json ci-out/ 2>/dev/null || true
+
+      - name: Look for videos of cows on Wikimedia Commons
+        if: inputs.job == 'videos'
+        run: |
+          set -o pipefail
+          python tools/find_videos.py ci-out 2>&1 | tee ci-out/videos.log
+
+      - name: Download the chosen videos and pack frames of them
+        if: inputs.job == 'clips'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          sudo apt-get install -y -qq ffmpeg > /dev/null 2>&1 || true
+          python tools/fetch_clips.py build/clips 2>&1 | tee ci-out/clips.log
+          ls -la build/clips || true
+          cp build/clips/*.json build/clips/*.jpg ci-out/ 2>/dev/null || true
+          gh release view research > /dev/null 2>&1 || gh release create research --prerelease --latest=false --title "Research files" --notes "Not an app release."
+          gh release upload research build/clips/clips.zip --clobber
 
       - name: Publish the log (research-ci branch)
         if: always()
@@ -69,9 +94,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           JOB_STATUS: ${{ job.status }}
         run: |
-          cp build/research/research.json ci-out/ 2>/dev/null || true
           {
-            echo "# Research run ${GITHUB_RUN_NUMBER}"
+            echo "# Research run ${GITHUB_RUN_NUMBER}: ${{ inputs.job }}"
             echo
             echo "Commit ${GITHUB_SHA}, $(date -u), job status: ${JOB_STATUS}"
           } > ci-out/README.md
